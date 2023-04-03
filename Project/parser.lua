@@ -112,22 +112,17 @@ local function infixCompChainCapture(opPatt, abovePattern)
     return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
-local exp = V"exp"
-local stat = V"stat"
-local stats = V"stats"
-local block = V"block"
-
 -- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
 local expGrammar = Stack{"stats",
     (numeral + var) * wss + OP * exp * CP, --primary
 }
-expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), lpeg.V(#expGrammar + 1), lpeg.V(#expGrammar))) --unary +-
-expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, lpeg.V(#expGrammar+1),  lpeg.V(#expGrammar))) --power
-expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * wss, lpeg.V(#expGrammar))) --multiplication
-expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, lpeg.V(#expGrammar))) --addition
-expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, lpeg.V(#expGrammar))) --comparison
+expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#expGrammar + 1), V(#expGrammar))) --unary +-
+expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, V(#expGrammar+1),  V(#expGrammar))) --power
+expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * wss, V(#expGrammar))) --multiplication
+expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, V(#expGrammar))) --addition
+expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, V(#expGrammar))) --comparison
 
-expGrammar.exp = lpeg.V(#expGrammar)
+expGrammar.exp = V(#expGrammar)
 expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign + ret * exp / nodeRet + lpeg.Cc(emptyNode)
 expGrammar.stats = stat * (SC * stats)^-1 / nodeSeq
 expGrammar.block = OB * stats * CB

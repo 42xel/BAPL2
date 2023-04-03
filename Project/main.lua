@@ -14,8 +14,5 @@ print()
 local code = compile((ast))
 print(pt(code))
 print()
---print(run(code))
-local mem = {}
-run(code, mem)
-print(mem.result)
+print(run(code))
 --------------------------------------------------------------------------------

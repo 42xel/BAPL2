@@ -27,7 +27,11 @@ local unaryops = {
     ['-'] = "minus",
 }
 local function codeExp(state, ast)
-    if ast.tag == "number" then
+    if ast.tag == "void" then
+    elseif ast.tag == "return" then
+        codeExp(state, ast.exp)
+        addCode(state, "ret")
+    elseif ast.tag == "number" then
         addCode(state, "push")
         addCode(state, ast.val)
     elseif ast.tag == "variable" then
@@ -64,6 +68,9 @@ end
 local function compile (ast)
     local state = {code = Stack{}}
     codeExp(state, ast)
+    addCode(state, "push")
+    addCode(state, 0)
+    addCode(state, "ret")
     return state.code
 end
 

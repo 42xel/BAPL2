@@ -16,7 +16,7 @@ local function run(code, mem, stack)
         return value
     end
 
-    while pc <= #code do
+    while true do
         trace = Stack{"instruction: " .. code[pc]}
         if false then
         elseif code[pc] == "push" then
@@ -31,6 +31,8 @@ local function run(code, mem, stack)
             local id = code[pc]
             mem[id] = pop()
             -- push(mem[id]) to return a value, for example a=b=c
+        elseif code[pc] == "ret" then
+            break
 --binary operations
         elseif code[pc] == "add" then
             local top = pop()
@@ -80,7 +82,7 @@ local function run(code, mem, stack)
         print(trace:unpack())
         pc = pc + 1
     end
-    return stack[1]
+    return stack(0)
 end
 
 --------------------------------------------------------------------------------

@@ -4,6 +4,12 @@ local utils = require "utils"
 
 --TODO : suffix the names of all patterns ending with a optional spaces by _
 --------------------------------------------------------------------------------
+local function isNodeEmpty(n)
+    return n == nil or n.tag == "void"
+end
+local emptyNode = {tag = "void"}
+
+--TODO make a functor generating nodeNodes functions
 local function nodeNum (num)
     return {tag = "number", val = tonumber(num)}
 end
@@ -14,7 +20,10 @@ local function nodeAssign(id, exp)
     return {tag = "assign", id = id, exp = exp}
 end
 local function nodeSeq(st1, st2)
-    return st2 and {tag = "seq", st1 = st1, st2 = st2} or st1
+    return isNodeEmpty(st2) and st1 or {tag = "seq", st1 = st1, st2 = st2}
+end
+local function nodeRet(exp)
+    return isNodeEmpty(exp) and exp or {tag = "return", exp = exp}
 end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
@@ -47,6 +56,8 @@ local CP = ')' * wss
 local OB = '{' * wss
 local CB = '}' * wss
 local SC = ';' * wss
+
+local ret = "return" * wss
 
 local opA = lpeg.C(lpeg.S'+-') * wss
 local opM = lpeg.C(lpeg.S'*/%') * wss
@@ -117,7 +128,7 @@ expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, lpeg.V(#expGrammar))) -
 expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, lpeg.V(#expGrammar))) --comparison
 
 expGrammar.exp = lpeg.V(#expGrammar)
-expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign
+expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign + ret * exp / nodeRet + lpeg.Cc(emptyNode)
 expGrammar.stats = stat * (SC * stats)^-1 / nodeSeq
 expGrammar.block = OB * stats * CB
 

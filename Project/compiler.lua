@@ -2,6 +2,7 @@ local pt = require "pt".pt
 local utils = require "utils"
 
 --------------------------------------------------------------------------------
+--TODO delete this and use code : push directly. Or not, could be useful to generate legible opCode (can still be handled by code:push)
 local function addCode(state, opCode)
     local code = state.code
     code:push(opCode)
@@ -41,7 +42,8 @@ local function codeExp(state, ast)
         addCode(state, ast.val)
     elseif ast.tag == "variable" then
         addCode(state, "load")
-        addCode(state, rawget(state.vars, ast.var) or error"Variable used before definition")
+        --it's ok, addCode ignores the error msg passed as a second arguement
+        addCode(state, assert(rawget(state.vars, ast.var), "Variable used before definition"))
     elseif ast.tag == "assign" then
         codeExp(state, ast.exp)
         addCode(state, "store")

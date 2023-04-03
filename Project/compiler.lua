@@ -26,6 +26,8 @@ local unaryops = {
     ['+'] = "plus",
     ['-'] = "minus",
 }
+
+--TODO split codeExp into itself and codeStat. or not
 local function codeExp(state, ast)
     if ast.tag == "void" then
     elseif ast.tag == "return" then
@@ -39,11 +41,11 @@ local function codeExp(state, ast)
         addCode(state, ast.val)
     elseif ast.tag == "variable" then
         addCode(state, "load")
-        addCode(state, ast.var)
+        addCode(state, rawget(state.vars, ast.var) or error"Variable use before definition")
     elseif ast.tag == "assign" then
         codeExp(state, ast.exp)
         addCode(state, "store")
-        addCode(state, ast.id)
+        addCode(state, state.vars[ast.id])
     elseif ast.tag == "seq" then
         codeExp(state, ast.st1)
         codeExp(state, ast.st2)
@@ -69,13 +71,21 @@ local function codeExp(state, ast)
 end
 
 local function compile (ast)
-    local state = {code = Stack{}}
+    local varsn = {} ; local state = {
+        code = Stack{},
+        vars = setmetatable({[varsn] = 1},{
+            __index = function(self, key)
+                self[key] = self[varsn]
+                self[varsn] = self[varsn] + 1
+                return self[key]
+            end
+        } 
+    )}
     codeExp(state, ast)
     addCode(state, "push")
     addCode(state, 0)
     addCode(state, "ret")
     return state.code
 end
-
 --------------------------------------------------------------------------------
 return compile

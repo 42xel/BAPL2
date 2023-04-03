@@ -81,9 +81,12 @@ tools for lazy eval
 lazy (doesn't eval unless asked to) Promises  £
 regular (always asynchronous) Promises €
 proactive (synchrounous whenever possible) Promises  $
+syntax similar to pointers in C (*). Op inverse or chained resolution could be § §§
 Promiselike types
 promise coercion : $id when id->nil, id<- == lazy unresolved
 easy syntaxes for Promises, with assignement acting as resolution, operator overloads, functional promises, upvalue promises...
+
+a€b or a.€b : then
 
 make €f the default way to make recursion
 and $f the default way to use old f whe' overriding it.
@@ -93,6 +96,18 @@ $4:100 : promise but only gets updated at depth 4 number 100
 
 a = ££nil | a = €nil : weak ref of sort
 (a = file.open("bla.txt")) = €nil : opens a file to be close by the next cycle. (alternative to with).
+
+
+£return €return $return : non stopping (asynchronous) return prompting the corresponding value/promise to be returned at the end of the function
+$£return $€return : breaking variant.
+subsequent returns overrides each other.
+$$return : would be equivalent to return. Instead, returns the last 
+
+some sort of error handling, with catch and finally.
+one way using no new syntax and (promissed) statements as expression :
+          (£try=code)€finally $try$catch
+One way using specific syntax : $try?catch:finally
+where [?!:][£€$] are chaining, respectively error, success and unconditional, and $ or ! can be implied.
 
 ------natural language
 very sketchy.

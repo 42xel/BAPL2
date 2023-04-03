@@ -2,7 +2,6 @@ local pt = require "pt".pt
 local lpeg = require "lpeg"
 local utils = require "utils"
 
---TODO : suffix the names of all patterns ending with a optional spaces by _
 --------------------------------------------------------------------------------
 local function isNodeEmpty(n)
     return n == nil or n.tag == "void"
@@ -30,11 +29,11 @@ local function nodePrint(exp)
 end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
-local wss = ws^0
+local ws_ = ws^0
 
 local comma = lpeg.S'.'
 
-local Assign = lpeg.P'=' * wss
+local Assign_ = lpeg.P'=' * ws_
 
 local digit = lpeg.R'09'
 local digits = digit^0
@@ -43,8 +42,7 @@ local hexdigits = hexdigit^0
 local function numeralCapture(digit, comma)
     return (digit^0 * (comma * digit^0)^-1) - ((comma+'')*-(digit+comma))
 end
---local numeral = (('0' * lpeg.S'xX' * hexdigits * (comma * hexdigits)^-1) - numeralVoidPredicate +
---  digits * (comma * digits)^-1 - numeralVoidPredicate) / nodeNum
+--I might want to have coding numeral stuck to variable identifiers or very special operators, so no spaces at the end.
 local numeral = ('0' * lpeg.S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (lpeg.S'eE' * digit^1)^-1) / nodeNum
 
 local alpha = lpeg.R('az', 'AZ')
@@ -54,18 +52,14 @@ local alphanum = alpha+digit
 local ID = lpeg.C((alpha + '_') * (alphanum + '_')^0)
 local var = ID / nodeVar
 
-local OP = '(' * wss
-local CP = ')' * wss
-local OB = '{' * wss
-local CB = '}' * wss
-local SC = ';' * wss
+local OP_ = '(' * ws_
+local CP_ = ')' * ws_
+local OB_ = '{' * ws_
+local CB_ = '}' * ws_
+local SC_ = ';' * ws_
 
-local ret = "return" * wss
-local printStat = '@' * wss
-
-local opA = lpeg.C(lpeg.S'+-') * wss
-local opM = lpeg.C(lpeg.S'*/%') * wss
-local opP = lpeg.C(lpeg.S'^') * wss
+local ret_ = "return" * ws_
+local printStat_ = '@' * ws_
 
 local function foldBin(a, op, b)
     return {
@@ -95,7 +89,7 @@ local function fold1Unary(op, a)
     return a and {tag = "unaryop", op=op, e = a} or op
 end
 local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chaining. set self to above to disallow
-    return abovePattern + opPatt * wss * abovePattern / fold1Unary + opPatt * ws^1 * selfPattern / fold1Unary --not allowing ++ , -- or +- , but allowing - -
+    return abovePattern + opPatt * ws_ * abovePattern / fold1Unary + opPatt * ws^1 * selfPattern / fold1Unary --not allowing ++ , -- or +- , but allowing - -
 end
 local function foldCompChain(t)
     --a < b < c will ultimatelybe transformed into (a<b) and (b<c)
@@ -118,24 +112,24 @@ end
 
 -- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
 local expGrammar = Stack{"stats",
-    (numeral + var) * wss + OP * exp * CP, --primary
+    (numeral + var) * ws_ + OP_ * exp * CP_, --primary
 }
 expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#expGrammar + 1), V(#expGrammar))) --unary +-
-expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, V(#expGrammar+1),  V(#expGrammar))) --power
-expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * wss, V(#expGrammar))) --multiplication
-expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, V(#expGrammar))) --addition
-expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, V(#expGrammar))) --comparison
+expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#expGrammar+1),  V(#expGrammar))) --power
+expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#expGrammar))) --multiplication
+expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#expGrammar))) --addition
+expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#expGrammar))) --comparison
 
 expGrammar.exp = V(#expGrammar)
 expGrammar.stat = block
-    + ID * wss * Assign * exp / nodeAssign
-    + ret * exp / nodeRet
-    + printStat * exp / nodePrint
+    + ID * ws_ * Assign_ * exp / nodeAssign
+    + ret_ * exp / nodeRet
+    + printStat_ * exp / nodePrint
     + lpeg.Cc(emptyNode)
-expGrammar.stats = stat * (SC * stats)^-1 / nodeSeq
-expGrammar.block = OB * stats * CB
+expGrammar.stats = stat * (SC_ * stats)^-1 / nodeSeq
+expGrammar.block = OB_ * stats * CB_
 
-expGrammar = wss * lpeg.P(expGrammar) * -1
+expGrammar = ws_ * lpeg.P(expGrammar) * -1
 
 local function parse (input)
     return expGrammar:match(input)

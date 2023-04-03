@@ -1,7 +1,5 @@
-My Drive
-
 ------name
-just Strings
+just Strings (JS)
 
 ------expressions
 
@@ -89,6 +87,9 @@ easy syntaxes for Promises, with assignement acting as resolution, operator over
 
 make €f the default way to make recursion
 and $f the default way to use old f whe' overriding it.
+
+(lazy|regular|proactive) binding/vow : ££ $$ (like Promise but value is not locked upon resolution)
+$4:100 : promise but only gets updated at depth 4 number 100
 
 ------natural language
 very sketchy.

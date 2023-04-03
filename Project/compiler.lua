@@ -31,6 +31,9 @@ local function codeExp(state, ast)
     elseif ast.tag == "return" then
         codeExp(state, ast.exp)
         addCode(state, "ret")
+    elseif ast.tag == "print" then
+        codeExp(state, ast.exp)
+        addCode(state, "print")
     elseif ast.tag == "number" then
         addCode(state, "push")
         addCode(state, ast.val)

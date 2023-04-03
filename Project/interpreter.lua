@@ -1,6 +1,7 @@
 local utils = require "utils"
 
 --------------------------------------------------------------------------------
+--TODO use a table for switch case
 local function run(code, mem, stack)
     stack = stack or Stack{}
     mem = mem or {}
@@ -31,7 +32,10 @@ local function run(code, mem, stack)
             local id = code[pc]
             mem[id] = pop()
             -- push(mem[id]) to return a value, for example a=b=c
+        elseif code[pc] == "print" then
+            print('@', pop())
         elseif code[pc] == "ret" then
+            assert (#stack == 1, "Mauvaise hauteur de stack en fin de return")
             break
 --binary operations
         elseif code[pc] == "add" then

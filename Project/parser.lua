@@ -23,7 +23,10 @@ local function nodeSeq(st1, st2)
     return isNodeEmpty(st2) and st1 or {tag = "seq", st1 = st1, st2 = st2}
 end
 local function nodeRet(exp)
-    return isNodeEmpty(exp) and exp or {tag = "return", exp = exp}
+    return {tag = "return", exp = exp}
+end
+local function nodePrint(exp)
+    return isNodeEmpty(exp) and exp or {tag = "print", exp = exp}
 end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
@@ -58,6 +61,7 @@ local CB = '}' * wss
 local SC = ';' * wss
 
 local ret = "return" * wss
+local printStat = '@' * wss
 
 local opA = lpeg.C(lpeg.S'+-') * wss
 local opM = lpeg.C(lpeg.S'*/%') * wss
@@ -123,7 +127,11 @@ expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, V(#expGrammar))) --addi
 expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, V(#expGrammar))) --comparison
 
 expGrammar.exp = V(#expGrammar)
-expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign + ret * exp / nodeRet + lpeg.Cc(emptyNode)
+expGrammar.stat = block
+    + ID * wss * Assign * exp / nodeAssign
+    + ret * exp / nodeRet
+    + printStat * exp / nodePrint
+    + lpeg.Cc(emptyNode)
 expGrammar.stats = stat * (SC * stats)^-1 / nodeSeq
 expGrammar.block = OB * stats * CB
 

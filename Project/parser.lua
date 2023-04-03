@@ -87,24 +87,19 @@ local function infixCompChainCapture(opPatt, abovePattern)
     return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
-local function exp(i)
-    return lpeg.V("exp" .. (i or ''))
-end
+local exp = lpeg.V"exp"
 
-local expOpList = Stack{}   -- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
-expOpList:push((numeral + var) * wss + OP * exp() * CP) --primary
-expOpList:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), exp(#expOpList + 1), exp(#expOpList))) --unary +-
-expOpList:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, exp(#expOpList+1),  exp(#expOpList))) --power
-expOpList:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * wss, exp(#expOpList))) --multiplication
-expOpList:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, exp(#expOpList))) --addition
-expOpList:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, exp(#expOpList))) --comparison
-    
-local expGrammar = {exp(),
+-- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
+local expGrammar = Stack{"exp",
+    (numeral + var) * wss + OP * exp * CP --primary
 }
-for i = 1, #expOpList do
-    expGrammar["exp"..i] = expOpList[i]
-end
-expGrammar["exp"] = exp(#expOpList)
+expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), lpeg.V(#expGrammar + 1), lpeg.V(#expGrammar))) --unary +-
+expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, lpeg.V(#expGrammar+1),  lpeg.V(#expGrammar))) --power
+expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * wss, lpeg.V(#expGrammar))) --multiplication
+expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, lpeg.V(#expGrammar))) --addition
+expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, lpeg.V(#expGrammar))) --comparison
+
+expGrammar.exp = lpeg.V(#expGrammar)
 
 expGrammar = wss * lpeg.P(expGrammar) * -1
 local function parse (input)

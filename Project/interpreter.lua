@@ -19,7 +19,7 @@ local function run(code, mem, stack)
 
     while true do
         trace = Stack{"instruction: " .. code[pc]}
-        if false then
+        if false then   --to only have elseif
         elseif code[pc] == "push" then
             pc = pc + 1
             push(code[pc])

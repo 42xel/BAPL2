@@ -26,7 +26,7 @@ local function nodeRet(exp)
     return {tag = "return", exp = exp}
 end
 local function nodePrint(exp)
-    return isNodeEmpty(exp) and exp or {tag = "print", exp = exp}
+    return {tag = "print", exp = exp}
 end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places

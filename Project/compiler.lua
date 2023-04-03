@@ -41,7 +41,7 @@ local function codeExp(state, ast)
         addCode(state, ast.val)
     elseif ast.tag == "variable" then
         addCode(state, "load")
-        addCode(state, rawget(state.vars, ast.var) or error"Variable use before definition")
+        addCode(state, rawget(state.vars, ast.var) or error"Variable used before definition")
     elseif ast.tag == "assign" then
         codeExp(state, ast.exp)
         addCode(state, "store")

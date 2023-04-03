@@ -29,6 +29,9 @@ local function codeExp(state, ast)
     if ast.tag == "number" then
         addCode(state, "push")
         addCode(state, ast.val)
+    elseif ast.tag == "variable" then
+        addCode(state, "load")
+        addCode(state, ast.var)
     elseif ast.tag == "binop" then
         codeExp(state, ast.e1)
         codeExp(state, ast.e2)

@@ -5,10 +5,15 @@ local utils = require "utils"
 local function nodeNum (num)
     return {tag = "number", val = tonumber(num)}
 end
+local function nodeVar (var)
+    return {tag = "variable", var = var}
+end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
 local wss = ws^0
+
 local comma = lpeg.S'.'
+
 local digit = lpeg.R'09'
 local digits = digit^0
 local hexdigit = lpeg.R('09', 'af', 'AF')
@@ -19,6 +24,12 @@ end
 --local numeral = (('0' * lpeg.S'xX' * hexdigits * (comma * hexdigits)^-1) - numeralVoidPredicate +
 --  digits * (comma * digits)^-1 - numeralVoidPredicate) / nodeNum
 local numeral = ('0' * lpeg.S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (lpeg.S'eE' * digit^1)^-1) / nodeNum
+
+local alpha = lpeg.R('az', 'AZ')
+local alphanum = alpha+digit
+
+local ID = lpeg.C((alpha + '_') * (alphanum + '_')^0)
+local var = ID / nodeVar
 
 local OP = '(' * wss
 local CP = ')' * wss
@@ -81,7 +92,7 @@ local function exp(i)
 end
 
 local expOpList = Stack{}   -- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
-expOpList:push(numeral * wss + OP * exp() * CP) --primary
+expOpList:push((numeral + var) * wss + OP * exp() * CP) --primary
 expOpList:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), exp(#expOpList + 1), exp(#expOpList))) --unary +-
 expOpList:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, exp(#expOpList+1),  exp(#expOpList))) --power
 expOpList:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * wss, exp(#expOpList))) --multiplication

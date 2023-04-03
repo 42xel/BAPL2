@@ -12,7 +12,7 @@ local subjects = {
     "2^2%3",
     "(2+3)*7",
     "4.5 /7 <= 3/5",
-    "5.5 /7 < 4/5 != 0x.A0e2 ",
+    "5.5 /7 < 4/- -5 != 0x.A0e2 ",
 }
 for _, subject in ipairs(subjects) do
     print(subject)

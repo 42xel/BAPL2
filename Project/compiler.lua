@@ -1,3 +1,4 @@
+local pt = require "pt".pt
 local utils = require "utils"
 
 --------------------------------------------------------------------------------
@@ -49,7 +50,7 @@ local function codeExp(state, ast)
         else
             error("invalid varop, unknown clause : " .. ast.clause)
         end
-    else error("invalid ast : " .. pt.pt(ast))
+    else error("invalid ast : " .. pt(ast))
     end
 end
 

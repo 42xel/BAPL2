@@ -19,7 +19,7 @@ The interpreter module.
 Loads a function which interprets the code using a stack machine of sort.
 
 ## test.lua
-Executes a battery of tests.
+Executes a battery of mostly outdated tests.
 
 ## main.lua
 Executes the input code passed in the standard input.

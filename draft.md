@@ -79,7 +79,7 @@ execution graph, can be modified dynamically, except in strict mode
 tools for lazy eval
 
 lazy (doesn't eval unless asked to) Promises  £
-regular (always asynchronous) Promises 
+regular (always asynchronous) Promises €
 proactive (synchrounous whenever possible) Promises  $
 Promiselike types
 promise coercion : $id when id->nil, id<- == lazy unresolved
@@ -90,6 +90,9 @@ and $f the default way to use old f whe' overriding it.
 
 (lazy|regular|proactive) binding/vow : ££ $$ (like Promise but value is not locked upon resolution)
 $4:100 : promise but only gets updated at depth 4 number 100
+
+a = ££nil | a = €nil : weak ref of sort
+(a = file.open("bla.txt")) = €nil : opens a file to be close by the next cycle. (alternative to with).
 
 ------natural language
 very sketchy.

@@ -33,6 +33,10 @@ local function codeExp(state, ast)
     elseif ast.tag == "variable" then
         addCode(state, "load")
         addCode(state, ast.var)
+    elseif ast.tag == "assign" then
+        codeExp(state, ast.exp)
+        addCode(state, "store")
+        addCode(state, ast.id)
     elseif ast.tag == "binop" then
         codeExp(state, ast.e1)
         codeExp(state, ast.e2)

@@ -17,9 +17,12 @@ setmetatable(Stack, {
 })
 
 V = {
-    __call = lpeg.V,
+    __call =function (_, ...)
+        return lpeg.V(...)
+    end,
     __index = function (self, key)
-        return self(key)
+        self[key] = self(key)
+        return self[key]
     end,
 }
 setmetatable(V, V)

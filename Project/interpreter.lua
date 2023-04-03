@@ -26,6 +26,11 @@ local function run(code, mem, stack)
             pc = pc + 1
             local id = code[pc]
             push(mem[id])
+        elseif code[pc] == "store" then
+            pc = pc + 1
+            local id = code[pc]
+            mem[id] = pop()
+            -- push(mem[id]) to return a value, for example a=b=c
 --binary operations
         elseif code[pc] == "add" then
             local top = pop()

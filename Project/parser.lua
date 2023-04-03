@@ -1,6 +1,8 @@
+local pt = require "pt".pt
 local lpeg = require "lpeg"
 local utils = require "utils"
 
+--TODO : suffix the names of all patterns ending with a optional spaces by _
 --------------------------------------------------------------------------------
 local function nodeNum (num)
     return {tag = "number", val = tonumber(num)}
@@ -8,11 +10,16 @@ end
 local function nodeVar (var)
     return {tag = "variable", var = var}
 end
+local function nodeAssign(id, exp)
+    return {tag = "assign", id = id, exp = exp}
+end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
 local wss = ws^0
 
 local comma = lpeg.S'.'
+
+local Assign = lpeg.P'=' * wss
 
 local digit = lpeg.R'09'
 local digits = digit^0
@@ -28,11 +35,15 @@ local numeral = ('0' * lpeg.S'xX' * numeralCapture(hexdigit, comma) + numeralCap
 local alpha = lpeg.R('az', 'AZ')
 local alphanum = alpha+digit
 
+--no spaces, potentially, things like field access need to be stuck to the ID
 local ID = lpeg.C((alpha + '_') * (alphanum + '_')^0)
 local var = ID / nodeVar
 
 local OP = '(' * wss
 local CP = ')' * wss
+local OB = '{' * wss
+local CB = '}' * wss
+local SC = ';' * wss
 
 local opA = lpeg.C(lpeg.S'+-') * wss
 local opM = lpeg.C(lpeg.S'*/%') * wss
@@ -79,7 +90,7 @@ local function foldCompChain(t)
     for i = 2, #t, 2 do
         r.eStack:push(foldBin(t[i-1], t[i], t[i+1]))
         --Sizeable issue, in a < b < c, expression b is duplicated.
-        --TODO : something smarter and later to compute it only once. for later.
+--TODO : something smarter and later to compute it only once. for later.
     end
     return r
 end
@@ -87,11 +98,14 @@ local function infixCompChainCapture(opPatt, abovePattern)
     return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
-local exp = lpeg.V"exp"
+local exp = V"exp"
+local stat = V"stat"
+local stats = V"stats"
+local block = V"block"
 
 -- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
-local expGrammar = Stack{"exp",
-    (numeral + var) * wss + OP * exp * CP --primary
+local expGrammar = Stack{"stat",
+    (numeral + var) * wss + OP * exp * CP, --primary
 }
 expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), lpeg.V(#expGrammar + 1), lpeg.V(#expGrammar))) --unary +-
 expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * wss, lpeg.V(#expGrammar+1),  lpeg.V(#expGrammar))) --power
@@ -100,11 +114,17 @@ expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, lpeg.V(#expGrammar))) -
 expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, lpeg.V(#expGrammar))) --comparison
 
 expGrammar.exp = lpeg.V(#expGrammar)
+expGrammar.stat = ID * wss * Assign * exp / nodeAssign
+--expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign
+--expGrammar.stats = stat * (SC * stats)^-1
+--expGrammar.block = OB * stats * CB
 
 expGrammar = wss * lpeg.P(expGrammar) * -1
+
 local function parse (input)
     return expGrammar:match(input)
 end
 
+--TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/.. style). Issue : emptying the stack if the value is not used
 --------------------------------------------------------------------------------
 return parse

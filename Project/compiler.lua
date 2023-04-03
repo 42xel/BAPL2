@@ -37,6 +37,9 @@ local function codeExp(state, ast)
         codeExp(state, ast.exp)
         addCode(state, "store")
         addCode(state, ast.id)
+    elseif ast.tag == "seq" then
+        codeExp(state, ast.st1)
+        codeExp(state, ast.st2)
     elseif ast.tag == "binop" then
         codeExp(state, ast.e1)
         codeExp(state, ast.e2)

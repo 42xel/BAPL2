@@ -15,5 +15,7 @@ local code = compile((ast))
 print(pt(code))
 print()
 --print(run(code))
-print(run(code, {v=67}))
+local mem = {}
+run(code, mem)
+print(mem.result)
 --------------------------------------------------------------------------------

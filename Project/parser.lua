@@ -13,6 +13,9 @@ end
 local function nodeAssign(id, exp)
     return {tag = "assign", id = id, exp = exp}
 end
+local function nodeSeq(st1, st2)
+    return st2 and {tag = "seq", st1 = st1, st2 = st2} or st1
+end
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
 local wss = ws^0
@@ -104,7 +107,7 @@ local stats = V"stats"
 local block = V"block"
 
 -- a list of cnstruct useable to build expression, from highest to lowest priorityst+2)))
-local expGrammar = Stack{"stat",
+local expGrammar = Stack{"stats",
     (numeral + var) * wss + OP * exp * CP, --primary
 }
 expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), lpeg.V(#expGrammar + 1), lpeg.V(#expGrammar))) --unary +-
@@ -114,10 +117,9 @@ expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * wss, lpeg.V(#expGrammar))) -
 expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * wss, lpeg.V(#expGrammar))) --comparison
 
 expGrammar.exp = lpeg.V(#expGrammar)
-expGrammar.stat = ID * wss * Assign * exp / nodeAssign
---expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign
---expGrammar.stats = stat * (SC * stats)^-1
---expGrammar.block = OB * stats * CB
+expGrammar.stat = block + ID * wss * Assign * exp / nodeAssign
+expGrammar.stats = stat * (SC * stats)^-1 / nodeSeq
+expGrammar.block = OB * stats * CB
 
 expGrammar = wss * lpeg.P(expGrammar) * -1
 

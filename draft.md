@@ -103,6 +103,8 @@ $£return $€return : breaking variant.
 subsequent returns overrides each other.
 $$return : would be equivalent to return. Instead, returns the last 
 
+unrelated : ?Return : write directly in the caller context ?
+          
 some sort of error handling, with catch and finally.
 one way using no new syntax and (promissed) statements as expression :
           (£try=code)€finally $try$catch

@@ -101,9 +101,10 @@ local nodeVar = nodeGenerator{tag = "variable", "var"}
 
 local nodeBinop = nodeGenerator{tag = "binop", "e1", "op", "e2"}
 local nodeFoldBinop = nodeGenerator(isNodeEmpty, 2, {1}, {2, {tag = "binop", "e1"}})
-local foldSuffBin = nodeGenerator{tag = "binopSuffix", "op", "e2"}
-local fold1Unary = nodeGenerator{tag = "unaryop", "op", "e"}    --local fold1Unary = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
+local nodeFoldBinopSuffix = nodeGenerator{tag = "binopSuffix", "op", "e2"}
+local nodeUnaryop = nodeGenerator{tag = "unaryop", "op", "e"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
 
+--Sizeable issue, in a < b < c, expression b is duplicated.
 --TODO : rework comparisons to do something smarter (and do it later) to compute middle terms only once.
 --TODO For later, when I ll know flow, andmemory alloted to interpreter
 --TODO Or maybe when I ll use leftValues
@@ -117,13 +118,13 @@ local function foldCompChain(t)
     }
     for i = 2, #t, 2 do
         r.eStack:push(nodeBinop(t[i-1], t[i], t[i+1]))
-        --Sizeable issue, in a < b < c, expression b is duplicated.
     end
     return r
 end
 
 --------------------------------------------------------------------------------
 --elementary patterns
+
 local ws = S' \t\n'    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
@@ -158,47 +159,47 @@ local SC_ = ';' * ws_
 local ret_ = "return" * ws_
 local printStat_ = '@' * ws_
 
-
-
 --------------------------------------------------------------------------------
+--elaborate patterns
 
 local function infixOpCapture(opPatt, abovePattern)
-    return lpeg.Cf(abovePattern * (opPatt * abovePattern / foldSuffBin)^0, nodeFoldBinop) 
+    return lpeg.Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop) 
 end
 local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern)  --set self to above to have a non asociative binary op.
-    --return lpeg.Cg(abovePattern, 'fst') * lpeg.Cg(lpeg.Cb('fst') * (opPatt * selfPattern / foldSuffBin) / nodeFoldBinop, 'fst')^-1 * lpeg.Cb('fst') --overkill
-    return abovePattern * (opPatt * selfPattern / foldSuffBin)^-1 / nodeFoldBinop
+    --return lpeg.Cg(abovePattern, 'fst') * lpeg.Cg(lpeg.Cb('fst') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, 'fst')^-1 * lpeg.Cb('fst') --overkill
+    return abovePattern * (opPatt * selfPattern / nodeFoldBinopSuffix)^-1 / nodeFoldBinop
 end
 local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chaining. set self to above to disallow
-    return abovePattern + opPatt * ws_ * abovePattern / fold1Unary + opPatt * ws^1 * selfPattern / fold1Unary --not allowing ++ , -- or +- , but allowing - -
+    return abovePattern + opPatt * ws_ * abovePattern / nodeUnaryop + opPatt * ws^1 * selfPattern / nodeUnaryop --not allowing ++ , -- or +- , but allowing - -
 end
 local function infixCompChainCapture(opPatt, abovePattern)
     return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
+--TODO split and rename grammar. or not.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
-local expGrammar = Stack{"stats",
+local grammar = Stack{"stats",
     (numeral + var) * ws_ + OP_ * exp * CP_, --primary
 }
-expGrammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#expGrammar + 1), V(#expGrammar))) --unary +-
-expGrammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#expGrammar+1),  V(#expGrammar))) --power
-expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#expGrammar))) --multiplication
-expGrammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#expGrammar))) --addition
-expGrammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#expGrammar))) --comparison
+grammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#grammar + 1), V(#grammar))) --unary +-
+grammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#grammar+1),  V(#grammar))) --power
+grammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#grammar))) --multiplication
+grammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#grammar))) --addition
+grammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#grammar))) --comparison
 
-expGrammar.exp = V(#expGrammar)
-expGrammar.stat = block
+grammar.exp = V(#grammar)
+grammar.stat = block
     + ID * ws_ * Assign_ * exp / nodeAssign
     + ret_ * exp / nodeRet
     + printStat_ * exp / nodePrint
     + lpeg.Cc(emptyNode)
-expGrammar.stats = stat * (SC_ * stats)^-1 / nodeSeq
-expGrammar.block = OB_ * stats * CB_
+grammar.stats = stat * (SC_ * stats)^-1 / nodeSeq
+grammar.block = OB_ * stats * CB_
 
-expGrammar = ws_ * lpeg.P(expGrammar) * -1
+grammar = ws_ * lpeg.P(grammar) * -1
 
 local function parse (input)
-    return expGrammar:match(input)
+    return grammar:match(input)
 end
 
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/.. style). Issue : emptying the stack if the value is not used

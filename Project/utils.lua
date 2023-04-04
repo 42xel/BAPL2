@@ -16,4 +16,29 @@ setmetatable(Stack, {
     __call = function(self, t) return setmetatable(t, self) end,
 })
 
+local debogue = {
+    trace = function(...)
+        if _DEBOGUE then
+            print(...)
+        end
+    end,
+    MaxOffset = 0,
+    I = function (tag)
+        return lpeg.P(function ()
+            print(tag)
+            return true
+        end)
+    end,
+}
+debogue.ws_suffix = function (_, p)
+    debogue.MaxOffset = math.max(debogue.MaxOffset, p)
+    return true
+end
+
+
 --TODO : switch case of sort, with RPNfold of arguments
+
+--------------------------------------------------------------------------------
+return {
+    debogue = debogue
+}

@@ -1,7 +1,7 @@
 local lpeg = require "lpeg"
 local pt = require "pt".pt
 local utils = require "utils"
-
+--TODO reordonner les imports
 local _Gmeta = getmetatable(_G)
 setmetatable(_G, {
     __index = setmetatable(lpeg, {
@@ -27,7 +27,6 @@ local nodeGenerator = setmetatable({_sel = 1}, {
         if type(t) == "table" then
             local sel = self._sel
             return function (...)
-                print("sel", pt(sel))
                 local r = select(sel, {}, ...)
                 for k, v in pairs(t) do
                     local tk = type(k)
@@ -127,6 +126,7 @@ end
 
 local ws = S' \t\n'    --we might need ws or ws^1 in some places
 local ws_ = ws^0
+if rawget(_G, "_DEBOGUE") then ws_ = ws_ * _DEBOGUE.ws_suffix end
 
 local comma = S'.'
 
@@ -178,31 +178,36 @@ end
 
 --TODO split and rename grammar. or not.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
-local grammar = Stack{"stats",
+local exp_ = Stack{"exp",
     (numeral + var) * ws_ + OP_ * exp * CP_, --primary
 }
-grammar:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#grammar + 1), V(#grammar))) --unary +-
-grammar:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#grammar+1),  V(#grammar))) --power
-grammar:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#grammar))) --multiplication
-grammar:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#grammar))) --addition
-grammar:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#grammar))) --comparison
+exp_:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
+exp_:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
+exp_:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#exp_))) --multiplication
+exp_:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#exp_))) --addition
+exp_:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#exp_))) --comparison
 
-grammar.exp = V(#grammar)
-grammar.stat = block
-    + ID * ws_ * Assign_ * exp / nodeAssign
-    + ret_ * exp / nodeRet
-    + printStat_ * exp / nodePrint
-    + lpeg.Cc(emptyNode)
-grammar.stats = stat * (SC_ * stats)^-1 / nodeSeq
-grammar.block = OB_ * stats * CB_
+exp_.exp = V(#exp_)
 
-grammar = ws_ * lpeg.P(grammar) * -1
-
-local function parse (input)
-    return grammar:match(input)
-end
+exp_ = P(exp_)
 
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/.. style). Issue : emptying the stack if the value is not used
+
+local stats_ = {"stats",
+    stat = block
+        + ID * ws_ * Assign_ * exp_ / nodeAssign
+        + ret_ * exp_ / nodeRet
+        + printStat_ * exp_ / nodePrint
+        + ws_ * lpeg.Cc(emptyNode),
+    stats = stat * (SC_ * stats)^-1 / nodeSeq,
+    block = OB_ * stats * CB_,
+}
+stats_ = P(stats_)
+
+local function parse (input)
+    --I pulled my hair for hours after splitting exp and stat, so now I'm putting leading spaces and EoF in the parser, to maje sur I have it only once
+    return (ws_ * stats_ * -1):match(input)
+end
 --------------------------------------------------------------------------------
 setmetatable(_G, _Gmeta)
 return parse

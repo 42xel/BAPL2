@@ -191,7 +191,7 @@ exp_.exp = V(#exp_)
 
 exp_ = P(exp_)
 
---TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/.. style). Issue : emptying the stack if the value is not used
+--TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 
 local stats_ = {"stats",
     stat = block

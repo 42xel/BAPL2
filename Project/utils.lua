@@ -35,7 +35,6 @@ debogue.ws_suffix = function (_, p)
     return true
 end
 
-
 --TODO : switch case of sort, with RPNfold of arguments
 
 --------------------------------------------------------------------------------

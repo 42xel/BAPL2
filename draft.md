@@ -29,6 +29,8 @@ functions are classes whose calls are instances.
 nice conceptually, but how inefficient?
 
 macro would be just code bloc executed in current ctx
+variables are cleaned up upon context closure.
+Context are mostly a stack except with coroutines ?
 
 ------spécial variables
 _variables
@@ -76,6 +78,7 @@ wlog : forces static behaviour ?
 
 execution graph, can be modified dynamically, except in strict mode
 
+------promises and vows
 tools for lazy eval
 
 lazy (doesn't eval unless asked to) Promises  £
@@ -103,8 +106,6 @@ $£return $€return : breaking variant.
 subsequent returns overrides each other.
 $$return : would be equivalent to return. Instead, returns the last 
 
-unrelated : ?Return : write directly in the caller context ?
-          
 some sort of error handling, with catch and finally.
 one way using no new syntax and (promissed) statements as expression :
           (£try=code)€finally $try$catch

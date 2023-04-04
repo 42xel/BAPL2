@@ -91,6 +91,8 @@ a€b or a.€b : then
 make €f the default way to make recursion
 and $f the default way to use old f whe' overriding it.
 
+bOOL_DEBUG$stuff
+
 (lazy|regular|proactive) binding/vow : ££ $$ (like Promise but value is not locked upon resolution)
 $4:100 : promise but only gets updated at depth 4 number 100
 

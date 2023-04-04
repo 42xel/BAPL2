@@ -16,14 +16,4 @@ setmetatable(Stack, {
     __call = function(self, t) return setmetatable(t, self) end,
 })
 
-V = {
-    __call =function (_, ...)
-        return lpeg.V(...)
-    end,
-    __index = function (self, key)
-        self[key] = self(key)
-        return self[key]
-    end,
-}
-setmetatable(V, V)
-setmetatable(_G, V)   --what could possibly go wrong ?
+--TODO : switch case of sort, with RPNfold of arguments

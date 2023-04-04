@@ -1,6 +1,16 @@
-local pt = require "pt".pt
 local lpeg = require "lpeg"
+local pt = require "pt".pt
 local utils = require "utils"
+
+local _Gmeta = getmetatable(_G)
+setmetatable(_G, {
+    __index = setmetatable(lpeg, {
+        __index = function (self, key)
+            self[key] = self.V(key)
+            return self[key]
+        end,
+    })
+})   --what could possibly go wrong ?
 
 --------------------------------------------------------------------------------
 local function isNodeEmpty(n)
@@ -8,16 +18,46 @@ local function isNodeEmpty(n)
 end
 local emptyNode = {tag = "void"}
 
---TODO make a functor generating nodeNodes functions
-local function nodeNum (num)
-    return {tag = "number", val = tonumber(num)}
-end
-local function nodeVar (var)
-    return {tag = "variable", var = var}
-end
-local function nodeAssign(id, exp)
-    return {tag = "assign", id = id, exp = exp}
-end
+local nodeGenerator = setmetatable({}, {
+    __call = function (self, t, n, pt1, pt2)
+        print("call", pt(t))
+        if type(t) == "table" then
+            return function (...)
+                local r = {}
+                for k, v in pairs(t) do
+                    local tk = type(k)
+                    if tk == "number" then  --variable stuff, such as e1, e2, st1, st2 ...
+                        r[v] = select(k, ...)
+                    elseif tk == "string" then  --constant stuff, such as tag
+                        r[k] = v
+                    end
+                end
+                return r
+            end
+        elseif type(t) == "function" then
+            print("function", pt(t), pt(n), pt(pt1), pt(pt2))
+            return function (...)
+                if t(select(n, ...)) then
+                    return self[pt1](...)
+                else
+                    return self[pt2](...)
+                end
+            end
+        elseif type(t) == "number" then
+            return function (...)
+                return select(t, ...)
+            end
+        else
+            error("nodeGenerator() : first argument must be a table, a function or a number. Got " .. tostring(t))
+        end
+    end,
+    __index = function(self, packedTable)
+        self[packedTable] = self(table.unpack(packedTable))
+        return self[packedTable]
+    end,
+})
+
+--[[old nodes
 local function nodeSeq(st1, st2)
     return isNodeEmpty(st2) and st1 or {tag = "seq", st1 = st1, st2 = st2}
 end
@@ -27,6 +67,22 @@ end
 local function nodePrint(exp)
     return {tag = "print", exp = exp}
 end
+local function nodeAssign(id, exp)
+    return {tag = "assign", id = id, exp = exp}
+end
+local function nodeNum (num)
+    return {tag = "number", val = tonumber(num)}
+end
+local function nodeVar (var)
+    return {tag = "variable", var = var}
+end
+--]]
+local nodeSeq = nodeGenerator(isNodeEmpty, 2, {1}, {{tag = "seq", "st1", "st2"}})
+local nodeRet = nodeGenerator{tag = "return", "exp"}
+local nodePrint = nodeGenerator{tag = "print", "exp"}
+local nodeAssign = nodeGenerator{tag = "assign", "id", "exp"}
+local nodeNum = nodeGenerator{tag = "number", "val"}
+local nodeVar = nodeGenerator{tag = "variable", "var"}
 
 local ws = lpeg.S' \t\n'    --we might need ws or ws^1 in some places
 local ws_ = ws^0
@@ -43,12 +99,13 @@ local function numeralCapture(digit, comma)
     return (digit^0 * (comma * digit^0)^-1) - ((comma+'')*-(digit+comma))
 end
 --I might want to have coding numeral stuck to variable identifiers or very special operators, so no spaces at the end.
-local numeral = ('0' * lpeg.S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (lpeg.S'eE' * digit^1)^-1) / nodeNum
+local numeral = ('0' * lpeg.S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (lpeg.S'eE' * digit^1)^-1) / tonumber / nodeNum
 
 local alpha = lpeg.R('az', 'AZ')
 local alphanum = alpha+digit
 
 --no spaces, potentially, things like field access need to be stuck to the ID
+--the possibility of no spaces before seems more important though
 local ID = lpeg.C((alpha + '_') * (alphanum + '_')^0)
 local var = ID / nodeVar
 
@@ -137,4 +194,5 @@ end
 
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/.. style). Issue : emptying the stack if the value is not used
 --------------------------------------------------------------------------------
+setmetatable(_G, _Gmeta)
 return parse

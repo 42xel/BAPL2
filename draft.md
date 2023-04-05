@@ -32,10 +32,11 @@ macro would be just code bloc executed in current ctx
 variables are cleaned up upon context closure.
 Context are mostly a stack except with coroutines ?
 
-------spécial variables
+------special variables and reserved keywords
 _variables
 manipulated like regular var but have special meaning.
-
+no reserved keywords, only special symbols as well as special built-in but modifiable keywords.
+Use contexts to make a safe mode or two. 
 
 ------flow
 as much as possible, flow operator behave like normal expressions

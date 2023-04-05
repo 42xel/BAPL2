@@ -29,6 +29,7 @@ local unaryops = {
 }
 
 --TODO split codeExp into itself and codeStat. or not
+
 local function codeExp(state, ast)
     if ast.tag == "void" then
     elseif ast.tag == "return" then
@@ -51,13 +52,13 @@ local function codeExp(state, ast)
     elseif ast.tag == "seq" then
         codeExp(state, ast.st1)
         codeExp(state, ast.st2)
+    elseif ast.tag == "unaryop" then
+        codeExp(state, ast.exp)
+        addCode(state, unaryops[ast.op])
     elseif ast.tag == "binop" then
         codeExp(state, ast.e1)
         codeExp(state, ast.e2)
         addCode(state, binops[ast.op])
-    elseif ast.tag == "unaryop" then
-        codeExp(state, ast.e)
-        addCode(state, unaryops[ast.op])
     elseif ast.tag == "varop" then
         if ast.clause == "conjonction" then
             codeExp(state, ast.eStack[1])
@@ -80,9 +81,10 @@ local function compile (ast)
                 self[key] = self[varsn]
                 self[varsn] = self[varsn] + 1
                 return self[key]
+                
             end
-        } 
-    )}
+        })
+    }
     codeExp(state, ast)
     addCode(state, "push")
     addCode(state, 0)

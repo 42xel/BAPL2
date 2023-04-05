@@ -101,7 +101,7 @@ local nodeVar = nodeGenerator{tag = "variable", "var"}
 local nodeBinop = nodeGenerator{tag = "binop", "e1", "op", "e2"}
 local nodeFoldBinop = nodeGenerator(isNodeEmpty, 2, {1}, {2, {tag = "binop", "e1"}})
 local nodeFoldBinopSuffix = nodeGenerator{tag = "binopSuffix", "op", "e2"}
-local nodeUnaryop = nodeGenerator{tag = "unaryop", "op", "e"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
+local nodeUnaryop = nodeGenerator{tag = "unaryop", "op", "exp"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
 
 --Sizeable issue, in a < b < c, expression b is duplicated.
 --TODO : rework comparisons to do something smarter (and do it later) to compute middle terms only once.

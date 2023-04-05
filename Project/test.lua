@@ -4,6 +4,21 @@ compile = require"compiler"
 run = require"interpreter"
 
 --------------------------------------------------------------------------------
+
+local case = 1
+
+
+repeat
+    
+    ::h::
+    print"hello"
+    break
+    ::w::
+    print"world"
+    break
+until true
+
+
 local subjects = {
     "0",
     " 1 + 1 ",
@@ -14,6 +29,7 @@ local subjects = {
     "4.5 /7 <= 3/5",
     "5.5 /7 < 4/- -5 != 0x.A0e2 ",
 }
+--[[
 for _, subject in ipairs(subjects) do
     print(subject)
     local ast = parse (subject)
@@ -23,3 +39,4 @@ for _, subject in ipairs(subjects) do
     print(run(code))
     print'\n'
 end
+--]]

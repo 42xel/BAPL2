@@ -30,7 +30,7 @@ local nodeGenerator = setmetatable({_sel = 1}, {
                 local r = select(sel, {}, ...)
                 for k, v in pairs(t) do
                     local tk = type(k)
-                    if tk == "number" then  --variable stuff, such as e1, e2, st1, st2 ...
+                    if tk == "number" then  --variable stuff, such as exp1, exp2, stat1, stat2 ...
                         r[v] = select(k, ...)
                     elseif tk == "string" then  --constant stuff, such as tag
                         r[k] = v
@@ -75,15 +75,15 @@ end
 local emptyNode = {tag = "void"}
 
 --[[old nodes examples
-local function nodeSeq(st1, st2)
-    return isNodeEmpty(st2) and st1 or {tag = "seq", st1 = st1, st2 = st2}
+local function nodeSeq(stat1, stat2)
+    return isNodeEmpty(stat2) and stat1 or {tag = "seq", stat1 = stat1, stat2 = stat2}
 end
 local function nodeBinop(a, op, b)
     return {
         tag = "binop",
         op = op,
-        e1 = a,
-        e2 = b,
+        exp1 = a,
+        exp2 = b,
     }
 end
 --all in all, 30 well invested lines of codes in the function generator to save 10 uses of the 'function' keywords, and give the linter a harder time.
@@ -91,16 +91,16 @@ end
 --TODO : add comments?
 --TODO see whether isNodeEmpty is really necssary there.
 
-local nodeSeq = nodeGenerator(isNodeEmpty, 2, {1}, {{tag = "seq", "st1", "st2"}})
+local nodeSeq = nodeGenerator(isNodeEmpty, 2, {1}, {{tag = "seq", "stat1", "stat2"}})
 local nodeRet = nodeGenerator{tag = "return", "exp"}
 local nodePrint = nodeGenerator{tag = "print", "exp"}
 local nodeAssign = nodeGenerator{tag = "assign", "id", "exp"}
 local nodeNum = nodeGenerator{tag = "number", "val"}
 local nodeVar = nodeGenerator{tag = "variable", "var"}
 
-local nodeBinop = nodeGenerator{tag = "binop", "e1", "op", "e2"}
-local nodeFoldBinop = nodeGenerator(isNodeEmpty, 2, {1}, {2, {tag = "binop", "e1"}})
-local nodeFoldBinopSuffix = nodeGenerator{tag = "binopSuffix", "op", "e2"}
+local nodeBinop = nodeGenerator{tag = "binop", "exp1", "op", "exp2"}
+local nodeFoldBinop = nodeGenerator(isNodeEmpty, 2, {1}, {2, {tag = "binop", "exp1"}})
+local nodeFoldBinopSuffix = nodeGenerator{tag = "binopSuffix", "op", "exp2"}
 local nodeUnaryop = nodeGenerator{tag = "unaryop", "op", "exp"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
 
 --Sizeable issue, in a < b < c, expression b is duplicated.

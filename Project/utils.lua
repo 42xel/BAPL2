@@ -54,10 +54,14 @@ debogue.ws_suffix = function (_, p)
 end
 
 ---[[
+
+--TODO description, usage
+--ugly and unpractical
 RPN_Switch = setmetatable ({
     case = {default = {}}, --special keys to refer to other cases
     --["break"] = {}, --special key to break. requires condition ?
     --pass = {},
+    var = {},
     --a common metatable to apply to cases to produce the switch
     _casesMeta = {
         __call = function(self, case, ...)
@@ -74,6 +78,9 @@ RPN_Switch = setmetatable ({
                 elseif code == RPN_Switch.case then
                     cp = cp + 1
                     self(rawget(self, caseCode[cp]), stack:unpack())
+                elseif code == RPN_Switch.var then
+                    cp = cp + 1
+                    stack:push(stack[caseCode[cp]])
                 elseif type(code) == "function" then
                     cp = cp + 1
                     local nargs = caseCode[cp]
@@ -113,6 +120,10 @@ print("testing case: " .. 'c' .. ":\t", switch_example("c"))
 print("testing case: " .. 'd' .. ":\t", switch_example("d", "bla", "bla", "bla"))
 print("testing case: " .. 'e' .. ":\t", switch_example("e"))
 --]]
+
+--TODO goto switch. not possible
+
+
 
 --------------------------------------------------------------------------------
 return {

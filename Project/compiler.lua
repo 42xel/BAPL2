@@ -31,27 +31,13 @@ local unaryops = {
 --TODO split codeExp into itself and codeStat. or not
 
 local function codeExp(state, ast)
-    if ast.tag == "void" then
-    elseif ast.tag == "return" then
-        codeExp(state, ast.exp)
-        addCode(state, "ret")
-    elseif ast.tag == "print" then
-        codeExp(state, ast.exp)
-        addCode(state, "print")
-    elseif ast.tag == "number" then
+    if ast.tag == "number" then
         addCode(state, "push")
         addCode(state, ast.val)
     elseif ast.tag == "variable" then
         addCode(state, "load")
         --it's ok, addCode ignores the error msg passed as a second arguement
         addCode(state, assert(rawget(state.vars, ast.var), "Variable used before definition"))
-    elseif ast.tag == "assign" then
-        codeExp(state, ast.exp)
-        addCode(state, "store")
-        addCode(state, state.vars[ast.id])
-    elseif ast.tag == "seq" then
-        codeExp(state, ast.st1)
-        codeExp(state, ast.st2)
     elseif ast.tag == "unaryop" then
         codeExp(state, ast.exp)
         addCode(state, unaryops[ast.op])
@@ -73,6 +59,25 @@ local function codeExp(state, ast)
     end
 end
 
+local function codeStat(state, ast)
+    if ast.tag == "void" then
+    elseif ast.tag == "return" then
+        codeExp(state, ast.exp)
+        addCode(state, "ret")
+    elseif ast.tag == "print" then
+        codeExp(state, ast.exp)
+        addCode(state, "print")
+    elseif ast.tag == "assign" then
+        codeExp(state, ast.exp)
+        addCode(state, "store")
+        addCode(state, state.vars[ast.id])
+    elseif ast.tag == "seq" then
+        codeStat(state, ast.st1)
+        codeStat(state, ast.st2)
+    else error("invalid ast : " .. pt(ast))
+    end
+end
+
 local function compile (ast)
     local varsn = {} ; local state = {
         code = Stack{},
@@ -85,8 +90,7 @@ local function compile (ast)
             end,
         })
     }
-    
-    codeExp(state, ast)
+    codeStat(state, ast)
     addCode(state, "push")
     addCode(state, 0)
     addCode(state, "ret")

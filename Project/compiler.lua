@@ -8,6 +8,7 @@ local function addCode(state, opCode)
     state.code:push(opCode)
 end
 
+--TODO (low prio) binops 
 local binops = {
     ['+'] = "add",
     ['-'] = "sub",
@@ -28,7 +29,6 @@ local unaryops = {
     ['-'] = "minus",
 }
 
---TODO split codeExp into itself and codeStat. or not
 
 local function codeExp(state, ast)
     if ast.tag == "number" then

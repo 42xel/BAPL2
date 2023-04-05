@@ -2,10 +2,10 @@ local pt = require "pt".pt
 local utils = require "utils"
 
 --------------------------------------------------------------------------------
---TODO delete this and use code : push directly. Or not, could be useful to generate legible opCode (can still be handled by code:push)
+--TODO delete this and use code : push directly.
 local function addCode(state, opCode)
-    local code = state.code
-    code:push(opCode)
+--TODO legible code for debug mode
+    state.code:push(opCode)
 end
 
 local binops = {
@@ -79,17 +79,18 @@ local function compile (ast)
         vars = setmetatable({[varsn] = 1},{
             __index = function(self, key)
                 self[key] = self[varsn]
+                self[self[varsn]] = key
                 self[varsn] = self[varsn] + 1
                 return self[key]
-                
-            end
+            end,
         })
     }
+    
     codeExp(state, ast)
     addCode(state, "push")
     addCode(state, 0)
     addCode(state, "ret")
-    return state.code
+    return state.code, state.codeLegible
 end
 --------------------------------------------------------------------------------
 return compile

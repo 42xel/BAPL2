@@ -16,7 +16,7 @@ motivation :
     
 ------code bloc
 code bloc/graph
-
+dynamic code blocks ?
 
 
 ------context
@@ -84,7 +84,7 @@ tools for lazy eval
 lazy (doesn't eval unless asked to) Promises  £
 regular (always asynchronous) Promises €
 proactive (synchrounous whenever possible) Promises  $
-syntax similar to pointers in C (*). Op inverse or chained resolution could be § §§
+syntax similar to pointers in C (*). Use §, §§ or some other character to represent the inverse operation, for resolution, chained resolution, or synchronous inspection ?
 Promiselike types
 promise coercion : $id when id->nil, id<- == lazy unresolved
 easy syntaxes for Promises, with assignement acting as resolution, operator overloads, functional promises, upvalue promises...
@@ -113,6 +113,21 @@ one way using no new syntax and (promissed) statements as expression :
           (£try=code)€finally $try$catch
 One way using specific syntax : $try?catch:finally
 where [?!:][£€$] are chaining, respectively error, success and unconditional, and $ or ! can be implied.
+
+------Scoping
+use lexical scoping by default ?
+how do contexts play into this ?
+how do promises and vows play into this ?   use § or §§ to denote dynamic scoping ?
+
+Advantage of static scoping : easier to cleanup memory without requiring user to explicitely do it.
+
+Lazy binding :
+function1 ...
+    a = £b
+issue : inspecting a promise each function call
+desired behaviour : linking dynamically upon fns declaration.
+(weirder) desired behaviour : linking dynamically upon first fns call : non easily accounted for, but something to try implementing once the language exist.
+Solution : is this issue actually real if functions are classes and calls are instances ? can't you somehow put this linking in the static part of the class ?
 
 ------natural language
 very sketchy.

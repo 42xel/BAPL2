@@ -86,7 +86,7 @@ local function run(code, mem, stack)
         print(trace:unpack())
         pc = pc + 1
     end
-    return stack(0)
+    return stack:unpack()
 end
 
 --------------------------------------------------------------------------------

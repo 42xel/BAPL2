@@ -4,11 +4,11 @@ local utils = require "utils"
 --------------------------------------------------------------------------------
 --TODO delete this and use code : push directly.
 local function addCode(state, opCode)
---TODO legible code for debug mode
+--TODO (low prio) legible code for debug mode
     state.code:push(opCode)
 end
 
---TODO (low prio) binops 
+--TODO (low prio) make enums and make opCode truly only numbers.
 local binops = {
     ['+'] = "add",
     ['-'] = "sub",
@@ -29,6 +29,7 @@ local unaryops = {
     ['-'] = "minus",
 }
 
+--TODO use RPN_Switch
 
 local function codeExp(state, ast)
     if ast.tag == "number" then

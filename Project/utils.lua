@@ -1,4 +1,22 @@
 lpeg = require"lpeg"
+
+
+local function set_GlpegShortHands(x) 
+    local r = getmetatable(_G)
+    setmetatable(_G, {
+        __index = setmetatable(lpeg, {
+            __index = setmetatable({},{
+                __index = function (self, key)
+                    self[key] = lpeg[x](key)
+                    return self[key]
+                end
+            })
+        })
+    })   --what could possibly go wrong ?
+    return r
+end
+
+--TODO description
 Stack = {
     push = function(self, ...)
         for _,v in ipairs {...} do
@@ -34,6 +52,7 @@ setmetatable(Stack, {
     __call = function(self, t) return setmetatable(t, self) end,
 })
 
+--TODO change name, developp and document
 local debogue = {
     trace = function(...)
         if _DEBOGUE then
@@ -56,6 +75,7 @@ end
 ---[[
 
 --TODO description, usage
+--TODO remove, lpeg switch much better
 --ugly and unpractical
 RPN_Switch = setmetatable ({
     case = {default = {}}, --special keys to refer to other cases
@@ -121,11 +141,9 @@ print("testing case: " .. 'd' .. ":\t", switch_example("d", "bla", "bla", "bla")
 print("testing case: " .. 'e' .. ":\t", switch_example("e"))
 --]]
 
---TODO goto switch. not possible
-
-
 
 --------------------------------------------------------------------------------
 return {
-    debogue = debogue
+    debogue = debogue,
+    set_GlpegShortHands = set_GlpegShortHands,
 }

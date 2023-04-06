@@ -1,16 +1,9 @@
-local lpeg = require "lpeg"
 local pt = require "pt".pt
+local lpeg = require "lpeg"
+
 local utils = require "utils"
---TODO reordonner les imports
-local _Gmeta = getmetatable(_G)
-setmetatable(_G, {
-    __index = setmetatable(lpeg, {
-        __index = function (self, key)
-            self[key] = self.V(key)
-            return self[key]
-        end,
-    })
-})   --what could possibly go wrong ?
+
+local _Gmeta = utils.set_GlpegShortHands"V"
 
 --------------------------------------------------------------------------------
 --utils
@@ -166,7 +159,7 @@ local function infixOpCapture(opPatt, abovePattern)
     return lpeg.Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop) 
 end
 local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern)  --set self to above to have a non asociative binary op.
-    --return lpeg.Cg(abovePattern, 'fst') * lpeg.Cg(lpeg.Cb('fst') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, 'fst')^-1 * lpeg.Cb('fst') --overkill
+    --return lpeg.Cg(abovePattern, '_') * lpeg.Cg(lpeg.Cb('_') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, '_')^-1 * lpeg.Cb('_') --overkill.
     return abovePattern * (opPatt * selfPattern / nodeFoldBinopSuffix)^-1 / nodeFoldBinop
 end
 local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chaining. set self to above to disallow

@@ -1,7 +1,13 @@
 local pt = require "pt".pt
+local lpeg = require"lpeg"
+
 local utils = require "utils"
 
+local _Gmeta = utils.set_GlpegShortHands"Cc"
+
 --------------------------------------------------------------------------------
+
+
 --TODO delete this and use code : push directly.
 --TODO (low prio) legible code for debug mode
 --local function state.code:push(opCode)
@@ -29,16 +35,66 @@ local unaryops = {
     ['-'] = "minus",
 }
 
---TODO use regular switches ?
---TODO custom switch like
+--TODO custom switch-like
 --TODO treat hard cases first, easy ones in an else switch
 --{
 --    number = {"push", "ast.val"}
 --  unaryop = {ast.exp, ast.}   --recognizes which addCode fns to use based on name
 --}
 
+local addCode = function(state, ast, field)
+    if field ~= nil then state.code:push(ast[field])
+    else state.code:push(ast) end
+end
 
+--[[
+local codeDisp = {
+    bop = lpeg.P'',
+    uop = lpeg.P'',
+    vop = lpeg.P'',
+}
+for _, e in pairs{
+    "exp", "stat"
+} do
+    codeDisp[e] = lpeg.Carg(1) * lpeg.Carg(2) * lpeg.P(e) / codeBit
+end
+--]]
 
+local Carg = lpeg.Carg
+local Cargs = setmetatable ({
+},{
+    __call = function(self, i, j)
+        if j == nil then
+            return self[1][i]
+        else
+            return self[i][j]
+--            return lpeg.Cc(i) * self[j] / select      --neat alternative to only store 1 -> i ranges
+        end
+    end,
+    __index = function(self, i)
+        self[i] = setmetatable({}, {
+            __index = function(j)
+                if j < i then
+                    return lpeg.P''
+                else
+                    return self[i][j-1] * Carg(j)
+                end
+            end
+        })
+        return self[i]
+    end,
+})
+
+--[[
+local switchExp = Carg(1) * (
+--TODO I dont think you have any guaranty on order of excution, it might be an idea to use lpeg.Cmt (once the tag is matched, is ok, but its ugly).
+      "number" * lpeg.Cc"push" / addCode * Cargs(2) * lpeg.Cc"val" / codeDisp
+    + "variable" * lpeg.Cc"load" / 
+    + "unaryop" * lpeg.Cc""
+    + "binop" * lpeg.Cc""
+    + "varop" * lpeg.Cc""
+)
+]]
 local function codeExp(state, ast)
     if ast.tag == "number" then
         state.code:push("push")
@@ -106,4 +162,5 @@ local function compile (ast)
     return state.code
 end
 --------------------------------------------------------------------------------
+setmetatable(_G, _Gmeta)
 return compile

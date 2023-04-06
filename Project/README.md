@@ -7,7 +7,7 @@ https://github.com/42xel/BAPL2.git
 A simplistic yet powerful library provided by the teachers to recursively print tables.
 
 ## utils.lua
-Various utilitary tools loaded directly as global variables.
+Various utilitary tools, some loaded directly as global variables.
 
 ## parser.lua
 The (lexer and) parser module.

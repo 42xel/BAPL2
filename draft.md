@@ -80,6 +80,8 @@ wlog : forces static behaviour ?
 execution graph, can be modified dynamically, except in strict mode
 
 ------promises and vows
+vows great for dynamic localization
+
 tools for lazy eval
 
 lazy (doesn't eval unless asked to) Promises  £

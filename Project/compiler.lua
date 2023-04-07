@@ -45,7 +45,7 @@ local switch = {}
 local _Gmeta = utils.set_GlpegShortHands"C"
 --(recursively) expands expression and statements into relevant code
 --TODO : make a function
-local _codeDispPatt = exp + stat
+local _codeDispPatt = C"exp" + C"stat"
 local codeDisp = function(state, ast, field)
     local new_ast = ast[field]
     switch[_codeDispPatt:match(field)](new_ast.tag, state, new_ast)

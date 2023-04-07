@@ -90,7 +90,7 @@ switch.stat = lpeg.Switch{
     print = Cargs(2) * exp / codeDisp * Cc"print" / addCode,
     assign = Cargs(2) * exp / codeDisp * store / addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end  * Cargs(2),
-    seq = Cargs(2) * stat1 / trspPrint / codeDisp * stat2 / trspPrint / codeDisp,
+    seq = Cargs(2) * stat1 / codeDisp * stat2 / codeDisp,
     [lpeg.Switch.default] = lpeg.Cc'' / invalidAst,
 }
 

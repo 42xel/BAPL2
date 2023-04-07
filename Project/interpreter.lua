@@ -1,25 +1,74 @@
+
+local lpeg = require "lpeg"
 local utils = require "utils"
 
+local _Gmeta = utils.set_GlpegShortHands""
 --------------------------------------------------------------------------------
 --TODO use a table for switch case
 local function run(code, mem, stack)
     stack = stack or Stack{}
     mem = mem or {}
-    local pc = 1
-    local trace
-    local function push(...)
-        trace:push('<- ' .. table.concat{...})
-        stack:push(...)
+    local pc = 0
+    local trace = Stack{}
+    local function push(v)
+        trace:push('<- ' .. v)
+        stack:push(v)
     end
     local function pop()
         local value = stack:pop()
         --shoulldn't happen, if it does, it's most likely an error in the compiler.
         trace:push('-> ' .. assert(value, "trying to pop the stack while empty! at opCode line " .. tonumber(pc)))
-        return value
+        return true, value
+    end
+    local function inc()
+        pc = pc + 1
+        return true
+    end
+    local function line()
+        return true, code[pc]
     end
 
-    while true do
+    local popop = P'' * pop * pop
+--TODO après prototype, utiliser Switch ?
+    local runSwitch = { -- = lpeg.Switch {
+        push = P'' * inc * line / push,
+        load = Cc(mem) * inc * line / get / push,
+        store = Cc(mem) * inc * line * pop / set,
+        print = Cc'@' * pop / print,
+        ret = Cc"Mauvaise hauteur de stack en fin de return" / function (err)
+            assert(#stack == 1, err)
+            return true
+        end,
+        --binary operators
+        add = popop * function(b, a) return a + b end / push,
+        sub = popop * function(b, a) return a - b end / push,
+        mul = popop * function(b, a) return a * b end / push,
+        div = popop * function(b, a) return a / b end / push,
+        mod = popop * function(b, a) return a % b end / push,
+        pow = popop * function(b, a) return a ^ b end / push,
+        --unary operations
+        plus = P'' / push,
+        minus = P'' * pop * function(a) return -a end / push,
+        --binary operations
+        lt = popop * function(b, a) return a < b end / push,
+        le = popop * function(b, a) return a <= b end / push,
+        gt = popop * function(b, a) return a > b end / push,
+        ge = popop * function(b, a) return a >= b end / push,
+        eq = popop * function(b, a) return a == b end / push,
+        neq = popop * function(b, a) return a ~= b end / push,
+        [lpeg.Switch.default] = C"unknown instruction:\t" / function (err)
+            print(trace:unpack())
+            --should not be happening, if it does, there most likely is an error in the compiler.
+            error("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc))
+        end
+    }
+
+    repeat
+        inc()
+        print(trace:unpack())
         trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}
+
+        --[[
         if false then   --to only have elseif
         elseif code[pc] == "push" then
             pc = pc + 1
@@ -87,9 +136,13 @@ local function run(code, mem, stack)
         end
         print(trace:unpack())
         pc = pc + 1
-    end
+        --]]
+        --print (pc, code[pc])
+    until runSwitch[code[pc]]:match''
     return stack:unpack()
 end
 
 --------------------------------------------------------------------------------
+setmetatable(_G, _Gmeta)
+
 return run

@@ -1,14 +1,17 @@
 lpeg = require"lpeg"
 
+--TODO prototype module ? (to use __index without overwriting it ?)
 --------------------------------------------------------------------------------
---TODO remove and clean up the mess from the `self[key] = lpeg[x](key)` part. Without a surprise, writing keywords directly as globals was a bad idea, _G is not empty to begin with.
+--TODO remove and clean up the mess from the `self[key] = lpeg[x](key)` part (or the whole lpeg metatable for what matters).
+--TODO Without a surprise, writing keywords directly as globals was a bad idea, _G is not empty to begin with.
 local function set_GlpegShortHands(x) 
     local r = getmetatable(_G)
     setmetatable(_G, {
         __index = setmetatable(lpeg, {
             __index = setmetatable({},{
                 __index = function (self, key)
-                    self[key] = lpeg[x](key)
+                    --print (key, x, rawget(lpeg, x))
+                    self[key] = rawget(lpeg, x)(key)
                     return self[key]
                 end
             })
@@ -20,6 +23,9 @@ end
 --------------------------------------------------------------------------------
 function get(t, k)
     return t[k]
+end
+function set(t, k, v)
+    t[k] = v
 end
 function trspPrint(...)
     print(...)

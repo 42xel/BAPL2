@@ -202,5 +202,4 @@ local function parse (input)
     return (ws_ * stats_ * -1):match(input)
 end
 --------------------------------------------------------------------------------
-setmetatable(_G, _Gmeta)
 return parse

@@ -3,7 +3,6 @@ local lpeg = require"lpeg"
 
 local utils = require "utils"
 
---TODO use lpeg.C ... / {} to reduce metatable usage
 --------------------------------------------------------------------------------
 
 
@@ -57,16 +56,16 @@ utils.set_GlpegShortHands"Cc"
 --Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
 --Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf variable)
 --obfuscating ? 
+--TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
 switch.exp = lpeg.Switch{
 --TODO I dont think you have any guaranty on order of excution, it might be an idea to use lpeg.Cmt (once the tag is matched, its ok.Cmt is ugly though).
     number = Cargs(2) * push / addCode * val / addCodeField,
-    variable = ---[=[ 
-        Cargs(2)* Cc"load" / addCode / function(state, ast)
-            print("toto")
+    variable = Cargs(2)* Cc"load" / addCode --[=[ 
+        / function(state, ast)
     -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
-        --addCode(state, ast, assert(rawget(state.vars, ast.var), "Variable used before definition"), nil)
-        state.code:push(assert(rawget(state.vars, ast.var), "Variable used before definition"), nil)
-        return state, ast end, --]=]
+       return addCode(state, ast, assert(rawget(state.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil) end,
+    --]=]
+        * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
     unaryop = Cargs(2) * exp / codeDisp * (Carg(2) * op / get / codeOP.u) / addCode,
     binop = Cargs(2) * exp1 / codeDisp * exp2 / codeDisp * (Carg(2) * op / get / codeOP.b) / addCode,
     --use substitution for branching?

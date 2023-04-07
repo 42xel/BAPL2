@@ -60,12 +60,12 @@ utils.set_GlpegShortHands"Cc"
 switch.exp = lpeg.Switch{
 --TODO I dont think you have any guaranty on order of excution, it might be an idea to use lpeg.Cmt (once the tag is matched, its ok.Cmt is ugly though).
     number = Cargs(2) * push / addCode * val / addCodeField,
-    variable = Cargs(2)* Cc"load" / addCode --[=[ 
+    variable = Cargs(2)* Cc"load" / addCode ---[=[ 
         / function(state, ast)
     -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
        return addCode(state, ast, assert(rawget(state.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil) end,
     --]=]
-        * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
+       -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
     unaryop = Cargs(2) * exp / codeDisp * (Carg(2) * op / get / codeOP.u) / addCode,
     binop = Cargs(2) * exp1 / codeDisp * exp2 / codeDisp * (Carg(2) * op / get / codeOP.b) / addCode,
     --use substitution for branching?

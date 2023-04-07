@@ -13,12 +13,13 @@ local function run(code, mem, stack)
     end
     local function pop()
         local value = stack:pop()
-        trace:push('-> ' .. value)
+        --shoulldn't happen, if it does, it's most likely an error in the compiler.
+        trace:push('-> ' .. assert(value, "trying to pop the stack while empty! at opCode line " .. tonumber(pc)))
         return value
     end
 
     while true do
-        trace = Stack{"instruction: " .. code[pc]}
+        trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}
         if false then   --to only have elseif
         elseif code[pc] == "push" then
             pc = pc + 1
@@ -81,7 +82,8 @@ local function run(code, mem, stack)
             push(pop() ~= top and 1 or 0)
         else
             print(trace:unpack())
-            error("unknown instruction")-- : " .. code[pc])
+            --should not be happening, if it does, there most likely is an error in the compiler.
+            error("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc))-- : " .. code[pc])
         end
         print(trace:unpack())
         pc = pc + 1

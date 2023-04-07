@@ -1,6 +1,7 @@
 lpeg = require"lpeg"
 
-
+--------------------------------------------------------------------------------
+--TODO remove and clean up the mess from the `self[key] = lpeg[x](key)` part. Without a surprise, writing keywords directly as globals was a bad idea, _G is not empty to begin with.
 local function set_GlpegShortHands(x) 
     local r = getmetatable(_G)
     setmetatable(_G, {
@@ -16,6 +17,15 @@ local function set_GlpegShortHands(x)
     return r
 end
 
+--------------------------------------------------------------------------------
+function get(t, k)
+    return t[k]
+end
+function trspPrint(...)
+    print(...)
+    return ...
+end
+--------------------------------------------------------------------------------
 --TODO description
 Stack = {
     push = function(self, ...)
@@ -52,27 +62,66 @@ setmetatable(Stack, {
     __call = function(self, t) return setmetatable(t, self) end,
 })
 
---TODO change name, developp and document
-local debogue = {
-    trace = function(...)
-        if _DEBOGUE then
-            print(...)
+--------------------------------------------------------------------------------
+--returns a guaranteed unique key.
+--call to create a new unique local key
+--index to access an existing global key or create one if needs be
+Symbol = setmetatable({}, {
+    __call = function(self, key)
+        return {label = key}
+    end,
+    __index = function(self, key)
+        self[key] = self(key)
+        return self[key]
+    end
+})
+--------------------------------------------------------------------------------
+--lpeg switch
+
+lpeg.Cargs = setmetatable ({
+},{
+    __call = function(self, i, j)
+        if j == nil then
+            return self[1][i]
+        else
+            return self[i][j]
+--            return lpeg.Cc(i) * self[j] / select      --neat alternative to only store 1 -> i ranges
         end
     end,
-    MaxOffset = 0,
-    I = function (tag)
-        return lpeg.P(function ()
-            print(tag)
-            return true
-        end)
+    __index = function(self, i)
+        self[i] = setmetatable({}, {
+            __index = function(self, j)
+                if j < i then
+                    return lpeg.P''
+                else
+                    return self[j-1] * lpeg.Carg(j)
+                end
+            end
+        })
+        return self[i]
     end,
-}
-debogue.ws_suffix = function (_, p)
-    debogue.MaxOffset = math.max(debogue.MaxOffset, p)
-    return true
-end
+})
 
----[[
+local default = Symbol["lpeg.Switch.default"]
+local missing = lpeg.P''
+lpeg.Switch = setmetatable({
+    default = default,
+    __call = function(self, case, ...)
+        --print("switch args", self, case, ...)
+        --print("switch case", self[case])
+        return self[case]:match(case,1, ...)
+    end,
+    __index = function(self, key)
+        return self[default] or missing
+    end,
+},
+{__call = function (self, t)
+    return setmetatable(t, self)
+end,
+})
+--------------------------------------------------------------------------------
+--[=[
+--[[
 
 --TODO description, usage
 --TODO remove, lpeg switch much better
@@ -100,7 +149,7 @@ RPN_Switch = setmetatable ({
                     self(rawget(self, caseCode[cp]), stack:unpack())
                 elseif code == RPN_Switch.var then
                     cp = cp + 1
-                    stack:push(stack[caseCode[cp]])
+                    stack:push(stack[caseCode[cp] ])
                 elseif type(code) == "function" then
                     cp = cp + 1
                     local nargs = caseCode[cp]
@@ -140,7 +189,28 @@ print("testing case: " .. 'c' .. ":\t", switch_example("c"))
 print("testing case: " .. 'd' .. ":\t", switch_example("d", "bla", "bla", "bla"))
 print("testing case: " .. 'e' .. ":\t", switch_example("e"))
 --]]
+--]=]
 
+--------------------------------------------------------------------------------
+--TODO change name, developp and document
+local debogue = {
+    trace = function(...)
+        if _DEBOGUE then
+            print(...)
+        end
+    end,
+    MaxOffset = 0,
+    I = function (tag)
+        return lpeg.P(function ()
+            print(tag)
+            return true
+        end)
+    end,
+}
+debogue.ws_suffix = function (_, p)
+    debogue.MaxOffset = math.max(debogue.MaxOffset, p)
+    return true
+end
 
 --------------------------------------------------------------------------------
 return {

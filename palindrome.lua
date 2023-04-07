@@ -24,9 +24,9 @@ local function isPalindrome(w)
     for i = 1, #w/2 do
         if w:byte(i) ~= w:byte(-i) then return false end
     end
-    return true
+    return true, w
 end
-local palCmt = lpeg.Cmt(alpha^0, function (p, i) local w = p:sub(1,i-1) return isPalindrome(w), w end)
+local palCmt = lpeg.Cmt(lpeg.C(alpha^0), function (_, i, w) return isPalindrome(w) end)
 
 --test
 local test = {

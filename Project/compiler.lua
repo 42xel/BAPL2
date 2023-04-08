@@ -39,7 +39,7 @@ local codeOP = {
     },
 }
 
-local invalidAst = function (state, ast) error("invalid ast : " .. pt(ast), 2) end
+local invalidAst = Cargs(2) / function (state, ast) error("invalid ast : " .. pt(ast), 2) end
 
 local switch = {}
 local _Gmeta = utils.set_GlpegShortHands"C"
@@ -80,7 +80,7 @@ switch.exp = lpeg.Switch{
             error("invalid varop, unknown clause : " .. ast.clause)
         end
     end  * Cargs(2),
-    [lpeg.Switch.default] = lpeg.Cc'' / invalidAst,
+    [lpeg.Switch.default] = invalidAst,
 }
 
 switch.stat = lpeg.Switch{
@@ -90,7 +90,7 @@ switch.stat = lpeg.Switch{
     assign = Cargs(2) * exp / codeDisp * store / addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end  * Cargs(2),
     seq = Cargs(2) * stat1 / codeDisp * stat2 / codeDisp,
-    [lpeg.Switch.default] = lpeg.Cc'' / invalidAst,
+    [lpeg.Switch.default] = invalidAst,
 }
 
 local function compile (ast)

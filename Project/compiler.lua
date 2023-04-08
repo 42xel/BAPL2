@@ -4,9 +4,7 @@ local lpeg = require"lpeg"
 local utils = require "utils"
 
 --------------------------------------------------------------------------------
-
-
---TODO (low prio) legible code for debug mode
+--TODO (low prio) legible code for debug mode.
 
 local addCode = function(state, ast, opCode)
     state.code:push(opCode)
@@ -57,8 +55,6 @@ utils.set_GlpegShortHands"Cc"
 --obfuscating ? 
 --TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
 switch.exp = lpeg.Switch{
---TODO I dont think you have any guaranty on order of excution, it might be an idea to use lpeg.Cmt (once the tag is matched, its ok.Cmt is ugly though).
---TODO USE Cmt. No Cmt is not ugly, just do * f (equivalent to * Cmt('',f), which often enough is what you want actually)
     number = Cargs(2) * push / addCode * val / addCodeField,
     variable = Cargs(2)* Cc"load" / addCode ---[=[ 
         / function(state, ast)

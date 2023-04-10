@@ -101,7 +101,7 @@ local nodeUnaryop = nodeGenerator{tag = "unaryop", "op", "exp"}    --local nodeU
 --TODO For later, when I ll know flow, andmemory alloted to interpreter
 --TODO Or maybe when I ll use leftValues
 local function foldCompChain(t)
-    --a < b < c will ultimatelybe transformed into (a<b) and (b<c)
+    --a < b < c will ultimately be transformed into (a<b) and (b<c)
     if #t == 1 then return t[1] end
     local r = {
         tag = "varop",
@@ -169,7 +169,7 @@ local function infixCompChainCapture(opPatt, abovePattern)
     return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
---TODO split and rename grammar. or not.
+--TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
 local exp_ = Stack{"exp",
     (numeral + var) * ws_ + OP_ * exp * CP_, --primary

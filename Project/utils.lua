@@ -1,6 +1,6 @@
 lpeg = require"lpeg"
 
---TODO prototype module ? (to use __index without overwriting it ?)
+--TODO prototype/proxy module ? (to use __index without overwriting it ?)
 --------------------------------------------------------------------------------
 --TODO remove and clean up the mess from the `self[key] = lpeg[x](key)` part (or the whole lpeg metatable for what matters).
 --TODO Without a surprise, writing keywords directly as globals was a bad idea, _G is not empty to begin with.

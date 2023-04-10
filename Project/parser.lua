@@ -82,7 +82,7 @@ end
 --all in all, 30 well invested lines of codes in the function generator to save 10 uses of the 'function' keywords, and give the linter a harder time.
 --]]
 --TODO : add comments?
---TODO see whether isNodeEmpty is really necssary there.
+--TODO see whether isNodeEmpty is really necssary/helpful there.
 
 local nodeSeq = nodeGenerator(isNodeEmpty, 2, {1}, {{tag = "seq", "stat1", "stat2"}})
 local nodeRet = nodeGenerator{tag = "return", "exp"}
@@ -179,6 +179,9 @@ exp_:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
 exp_:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#exp_))) --multiplication
 exp_:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#exp_))) --addition
 exp_:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#exp_))) --comparison
+--TODO : ponder and discuss priority. My idea : logical operator => very low prio.
+--TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
+exp_:push(unaryOpCapture(C'~', V(#exp_ + 1), V(#exp_)))    --unary not.
 
 exp_.exp = V(#exp_)
 

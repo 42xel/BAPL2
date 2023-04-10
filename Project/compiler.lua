@@ -19,6 +19,7 @@ local codeOP = {
     u = {
         ['+'] = "plus",
         ['-'] = "minus",
+        ['~'] = "not",
     },
     b = {
         ['+'] = "add",
@@ -43,11 +44,19 @@ local switch = {}
 local _Gmeta = utils.set_GlpegShortHands"C"
 local _codeDispPatt = C"exp" + C"stat"
 --(recursively) expands expression and statements into relevant code
-local codeDisp = function(state, ast, field)
-    local new_ast = ast[field]
-    switch[_codeDispPatt:match(field)](new_ast.tag, state, new_ast)
-    return state, ast
-end
+local codeGen = {
+    disp = function(state, ast, field)
+            local new_ast = ast[field]
+            switch[_codeDispPatt:match(field)](new_ast.tag, state, new_ast)
+        return state, ast
+    end,
+    exp = function(state, ast)
+        switch.exp(ast.tag, state, ast)
+    end,
+    stat = function(state, ast)
+        switch.stat(ast.tag, state, ast)
+    end,
+}
 
 utils.set_GlpegShortHands"Cc"
 --Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
@@ -62,15 +71,15 @@ switch.exp = lpeg.Switch{
        return addCode(state, ast, assert(rawget(state.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil) end,
     --]=]
        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
-    unaryop = Cargs(2) * exp / codeDisp * (Carg(2) * op / get / codeOP.u) / addCode,
-    binop = Cargs(2) * exp1 / codeDisp * exp2 / codeDisp * (Carg(2) * op / get / codeOP.b) / addCode,
-    --use substitution for branching?
+    unaryop = Cargs(2) * exp / codeGen.disp * (Carg(2) * op / get / codeOP.u) / addCode,
+    binop = Cargs(2) * exp1 / codeGen.disp * exp2 / codeGen.disp * (Carg(2) * op / get / codeOP.b) / addCode,
+    --Could substitution be used for branching ?
     varop = Cargs(2) / function (state, ast)
         if ast.clause == "conjonction" then
-            codeDisp(state, ast.eStack[1])
+            codeGen.exp(state, ast.eStack[1])
             for i = 2, #ast.eStack do
-                codeDisp.exp(state, ast.eStack[i])
-                state.code:push("mul")
+                codeGen.exp(state, ast.eStack[i])
+                state.code:push"mul"
             end
         else
             error("invalid varop, unknown clause : " .. ast.clause)
@@ -81,11 +90,11 @@ switch.exp = lpeg.Switch{
 
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
-    ["return"] = Cargs(2) * exp / codeDisp * ret / addCode,
-    print = Cargs(2) * exp / codeDisp * Cc"print" / addCode,
-    assign = Cargs(2) * exp / codeDisp * store / addCode / function(state, ast)
+    ["return"] = Cargs(2) * exp / codeGen.disp * ret / addCode,
+    print = Cargs(2) * exp / codeGen.disp * Cc"print" / addCode,
+    assign = Cargs(2) * exp / codeGen.disp * store / addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end  * Cargs(2),
-    seq = Cargs(2) * stat1 / codeDisp * stat2 / codeDisp,
+    seq = Cargs(2) * stat1 / codeGen.disp * stat2 / codeGen.disp,
     [lpeg.Switch.default] = invalidAst,
 }
 
@@ -102,7 +111,8 @@ local function compile (ast)
         })
     }
     --codeStat(state, ast)
-    codeDisp(state, {stat = ast}, "stat")
+    --switch.stat(state, ast)
+    codeGen.stat(state, ast)
     state.code:push("push")
     state.code:push(0)
     state.code:push("ret")

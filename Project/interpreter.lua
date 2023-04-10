@@ -12,6 +12,12 @@ local function run(code, mem, stack)
     local pc = 0
     local trace = Stack{}
     local function push(v)
+        --shouldn't happen, if it does, it most likely is an error in the compiler
+        --print()
+        --print(pt(code))
+        --print(pt(mem))
+        --print(pt(stack))
+        if type(v) ~= "number" then error("trying to push a non number value:\t" .. tostring(v) ) end
         trace:push('<- ' .. v)
         stack:push(v)
     end
@@ -30,6 +36,7 @@ local function run(code, mem, stack)
     end
 
     local popop = P'' * pop * pop
+    local function boolToInt (a) return a ~= 0 and 1 or 0 end
 --TODO after prototype/proxy is done, use Switch ? The issue here being
     local runSwitch = { -- = lpeg.Switch {
         push = P'' * inc * line / push,
@@ -50,13 +57,14 @@ local function run(code, mem, stack)
         --unary operations
         plus = P'' / push,
         minus = P'' * pop / function(a) return -a end / push,
+        ["not"] = P'' * pop / function(a) return a == 0 and 1 or 0 end / push,
         --binary operations
-        lt = popop / function(b, a) return a < b end / push,
-        le = popop / function(b, a) return a <= b end / push,
-        gt = popop / function(b, a) return a > b end / push,
-        ge = popop / function(b, a) return a >= b end / push,
-        eq = popop / function(b, a) return a == b end / push,
-        neq = popop / function(b, a) return a ~= b end / push,
+        lt = popop / function(b, a) return a < b end / boolToInt / push,
+        le = popop / function(b, a) return a <= b end / boolToInt / push,
+        gt = popop / function(b, a) return a > b end / boolToInt / push,
+        ge = popop / function(b, a) return a >= b end / boolToInt / push,
+        eq = popop / function(b, a) return a == b end / boolToInt / push,
+        neq = popop / function(b, a) return a ~= b end / boolToInt / push,
         [lpeg.Switch.default] = C"unknown instruction:\t" / function (err)
             print(trace:unpack())
             --should not be happening, if it does, there most likely is an error in the compiler.

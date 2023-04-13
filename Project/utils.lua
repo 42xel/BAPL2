@@ -131,6 +131,7 @@ local debogue = {
             print(...)
         end
     end,
+--TODO whats best, MaxOffset or LastOffset ? or both ?
     MaxOffset = 0,
     I = function (tag)
         return lpeg.P(function ()

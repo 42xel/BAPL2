@@ -117,7 +117,16 @@ end
 --------------------------------------------------------------------------------
 --elementary patterns
 
-local ws = S' \t\n'    --we might need ws or ws^1 in some places
+local locale = lpeg.locale()
+local function inc(x)
+    print("inc", x)
+    return x + 1
+end
+
+--spaces
+
+local newLine = '\n' * lpeg.Cg(lpeg.Cb("lineNumber") / inc, "lineNumber") * lpeg.Cg(lpeg.Cp(), "lineStart")
+local ws = newLine + locale.space    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 if rawget(_G, "_DEBOGUE") then ws_ = ws_ * _DEBOGUE.ws_suffix end
 

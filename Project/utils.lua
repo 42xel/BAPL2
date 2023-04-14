@@ -82,7 +82,8 @@ Symbol = setmetatable({}, {
     end
 })
 --------------------------------------------------------------------------------
---lpeg switch
+--lpeg fields
+--TODO : cleaner, use inheritance or something.
 
 lpeg.Cargs = setmetatable ({
 },{
@@ -107,6 +108,23 @@ lpeg.Cargs = setmetatable ({
         return self[i]
     end,
 })
+--simple debugging pattern
+--TODO msg.format ? allows much more things
+function lpeg.I (msg, ncmt)
+    --ncmt = true
+    return ncmt and lpeg.P(msg) / print or lpeg.P(function (...) print(msg:format(...)); return true end)
+end
+--list capture. Like table capture, but doesn't consume (or yield) named captures.
+--as a quirk from patt/function I can't be bothered with fixing, it returns a singleton with the whole match instead of an empty list when patt makes no captures.
+--TODO fix quirk using anonymous group capture ? looks like the perfect opportunity...
+function lpeg.Cl(patt)
+    return lpeg.P(patt) / function (...)
+        return {...}
+    end
+end
+
+--------------------------------------------------------------------------------
+--lpeg switch
 
 local default = Symbol["lpeg.Switch.default"]
 local missing = lpeg.P''

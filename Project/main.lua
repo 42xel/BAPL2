@@ -10,12 +10,13 @@ run = require"interpreter"
 --------------------------------------------------------------------------------
 --TODO : add an interface of sort
 
-local input = io.read()
+--TODO update lua
+local input = io.read'*a'
 print(input)
 
 local ast = parse (input)
 print(pt(ast))
-print("MaxOffset", _DEBOGUE.MaxOffset)
+--print("MaxOffset", _DEBOGUE.MaxOffset)
 print()
 
 local code = compile((ast))

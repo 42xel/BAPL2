@@ -118,17 +118,29 @@ end
 --elementary patterns
 
 local locale = lpeg.locale()
-local function inc(x)
-    print("inc", x)
+local function inc(...)
+    print("inc", ...)
+    local x = ...
     return x + 1
 end
 
 --spaces
 
-local newLine = '\n' * lpeg.Cg(lpeg.Cb("lineNumber") / inc, "lineNumber") * lpeg.Cg(lpeg.Cp(), "lineStart")
+--TODO : store lineNumber and lineStart inside or around the AST for reporting and syntax highlight
+local newLine = '\n' * lpeg.Cg(lpeg.Cb("lineNumber") / inc, "lineNumber") * lpeg.Cg(Cc"blabla" / print * Cp(), "lineStart")
 local ws = newLine + locale.space    --we might need ws or ws^1 in some places
 local ws_ = ws^0
-if rawget(_G, "_DEBOGUE") then ws_ = ws_ * _DEBOGUE.ws_suffix end
+
+--TODO make msg an object ??
+--TODO use a patt argument for nested/chained errors ??
+--returns a pattern raising an error
+local function err(msg)
+    return Cmt(lpeg.Cb("lineNumber") * lpeg.Cb("lineStart"), function (subject, p, n, s, ...)
+        io.stderr:write(string.format("error in <input>:%d:%d\t", n, p - s + 1))    --TODO use filename
+        io.stderr:write(msg .. '\n')
+        os.exit()
+    end)
+end
 
 local comma = S'.'
 
@@ -175,7 +187,7 @@ local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chain
     return abovePattern + opPatt * ws_ * abovePattern / nodeUnaryop + opPatt * ws^1 * selfPattern / nodeUnaryop --not allowing ++ , -- or +- , but allowing - -
 end
 local function infixCompChainCapture(opPatt, abovePattern)
-    return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
+    return lpeg.Cl(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
 --TODO : make every statement expression.
@@ -203,15 +215,16 @@ local stats_ = {"stats",
         + ID * ws_ * Assign_ * exp_ / nodeAssign
         + ret_ * exp_ / nodeRet
         + printStat_ * exp_ / nodePrint
-        + ws_ * lpeg.Cc(emptyNode),
-    stats = stat * (SC_ * stats)^-1 / nodeSeq,
-    block = OB_ * stats * CB_,
+        + SC_^(-1) * lpeg.Cc(emptyNode),
+    stats = (stat * (SC_ * stats)^-1 / nodeSeq),
+    block = OB_ * stats * (CB_ + err"block: missing brace"),
 }
 stats_ = P(stats_)
+local filePatt = I'A' * lpeg.Cg(lpeg.Cc(1), "lineNumber") * lpeg.Cg(lpeg.Cc(1), "lineStart") * I'B' * ws_ * I'C' * stats_ * I'D' * (Cc"maxMatch:" * Cp() / print) * (-1 + err"file: eof expected.")
 
 local function parse (input)
     --I pulled my hair for hours after splitting exp and stat, so now I'm putting leading spaces and EoF in the parser, to maje sur I have it only once
-    return (ws_ * stats_ * -1):match(input)
+    return filePatt:match(input)
 end
 --------------------------------------------------------------------------------
 return parse

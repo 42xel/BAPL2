@@ -35,8 +35,15 @@ As a consequence, captures "consume" all captures, including named ones.
 So you can't just mindlessly reduce a subpattern if you want to keep track of a value accross its super pattern.
 A couple differnet solutions :
 * use match time capture, to leaisurly use border effect, full subject external anaysis and whatnot
-* use table capture everywhere, pass along a compile state table, have capture functions unpack it a nd return it. (can you have things other than function capture though then?)
+* use table capture everywhere, pass along a compile state table, have capture functions unpack it a nd return it.
 * use named capture everywhere, to leisurely recompose them.
+* put ine number into or around the AST
+
+solution 1 is somewhat inelegant, maybe one want to do more than just reporting linenumber, and then 
+solution 3 is not as easy and more restrictive as it initially sounds
+solution 2 sounds like it restrict to only function capture (but then again so do the other ones)
+solution 4 sounds like best.
+
 ]]
 
 --[[
@@ -61,13 +68,20 @@ patt1 = patt0 / print
 patt2 = patt1 * lpeg.Cb"through" / print
 print(patt2:match'')  --lua: test_Cb.lua:49: back reference 'through' not found
 --]]
----[[
+--[[
 
 patt0 = lpeg.Cg(lpeg.Cc"World", "post") * lpeg.Cg(lpeg.Cc"dear", "through") * lpeg.Cg(lpeg.Cc"Hello", "pre") * lpeg.Cg(lpeg.Cb"pre" * lpeg.Cb"post", "args") * (lpeg.Cb"args" / print)
 --patt1 = lpeg.Cc"Hi" * lpeg.Cg(lpeg.Cb(1) * lpeg.Cc"Hello" * lpeg.Cc"World") / print
 print(patt0:match'')  --lua: test_Cb.lua:49: back reference 'through' not found
 --]]
 
+--[[group capture don't capture nest capture
+patt1 = lpeg.Cg(lpeg.Cg(lpeg.Cc(14), "nested"), "nest") * lpeg.Ct(lpeg.Cb"nest") / pt / print
+print(patt1:match'')
+]]
+
+patt = lpeg.Cg(lpeg.Cc"hello", 1) * (lpeg.Cg(lpeg.Cc"howdy", 1) * lpeg.Cg(lpeg.Cc(nil), 1) ) * lpeg.Cg(lpeg.Cc"world", 2) * lpeg.Cb(1) * lpeg.Cb(2)
+print(patt:match'')
 
 --------------------------------------------------------------------------------
 --[[attempt to reproduce somthing wrong

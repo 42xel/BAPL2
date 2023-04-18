@@ -118,16 +118,17 @@ end
 --elementary patterns
 
 local locale = lpeg.locale()
-local function inc()
+local function inc(...)
+    print("inc", ...)
+    local x = ...
     return x + 1
 end
 
 --spaces
 
 --TODO : store lineNumber and lineStart inside or around the AST for reporting and syntax highlight
-local newLine = '\n' * Cg(Cb("lineNumber") / inc, "lineNumber") * Cg(Cp(), "lineStart")
+local newLine = '\n' * lpeg.Cg(lpeg.Cb("lineNumber") / inc, "lineNumber") * lpeg.Cg(Cc"blabla" / print * Cp(), "lineStart")
 local ws = newLine + locale.space    --we might need ws or ws^1 in some places
---(trailing) underscore denotes a pattern including (trialing) spaces, with 1, "lineNumber" and "lineStart" captures (so must be top level somehow)
 local ws_ = ws^0
 
 --TODO make msg an object ??
@@ -175,34 +176,27 @@ local printStat_ = '@' * ws_
 --------------------------------------------------------------------------------
 --elaborate patterns
 
-local function infixOpCapture(opPatt_, abovePattern_)
-    return abovePattern_ * Cpy'args' 
-    * (opPatt_ * abovePattern_ * Cg(Cb'args' * (Cb'op' * Cb'_' / nodeFoldBinopSuffix), 'args'))^0 
-    * Cg(Ct(Cb'args' / nodeFoldBinop), '_') * Cg(Cc(nil), 'args')   --it's important to clean after as not always possible before
+local function infixOpCapture(opPatt, abovePattern)
+    return lpeg.Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop) 
 end
-local function infixOpCaptureRightAssoc(opPatt_, selfPattern_, abovePattern_)  --set self to above to have a non asociative binary op.
-    return abovePattern_ * Cg(Cb'args' * Cb'_', 'args')
-    * (opPatt_ * selfPattern_ * Cg(Cb'args' * (Cb'op' * Cb'_' / nodeFoldBinopSuffix), 'args'))^-1 --TODO probably won''t work, Cpy'args' no good
-    * Cg(Cb'args' / nodeFoldBinop, '_')
+local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern)  --set self to above to have a non asociative binary op.
+    --return lpeg.Cg(abovePattern, '_') * lpeg.Cg(lpeg.Cb('_') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, '_')^-1 * lpeg.Cb('_') --overkill.
+    return abovePattern * (opPatt * selfPattern / nodeFoldBinopSuffix)^-1 / nodeFoldBinop
 end
-local function unaryOpCapture(opPatt_, selfPattern_, abovePattern_)  --allows chaining. set self to above to disallow
-    return abovePattern_
-    + opPatt_ * Cpy('args', 'op') * abovePattern_ * Cg(Cb'args' * Cb'_' / nodeUnaryop, '_')--allowing -a, no space
-    + opPatt_ * Cpy('args', 'op') * ws * selfPattern_ * (Cb'args' * Cb'_' / nodeUnaryop) --not allowing ++ , -- or +- , but allowing - -
---TODO probably won't work, Cpy'args' no good
+local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chaining. set self to above to disallow
+    return abovePattern + opPatt * ws_ * abovePattern / nodeUnaryop + opPatt * ws^1 * selfPattern / nodeUnaryop --not allowing ++ , -- or +- , but allowing - -
 end
-local function infixCompChainCapture(opPatt, abovePattern_)
-    return abovePattern_ * Cpy'args' * (opPatt * abovePattern_ * Cg(Cb'args' * Cb'op' * Cb'_', 'args'))^0
-    * lpeg.Cg(lpeg.Ct(lpeg.Cb'args') / foldCompChain, '_')
+local function infixCompChainCapture(opPatt, abovePattern)
+    return lpeg.Cl(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
 --TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
-local exp_ = Stack{"exp_",
-    lpeg.Cg(numeral + var, 1) * ws_ + OP_ * exp_ * CP_, --primary
+local exp_ = Stack{"exp",
+    (numeral + var) * ws_ + OP_ * exp * CP_, --primary
 }
 exp_:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
-exp_:push(unaryOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#exp_ + 1), V(#exp_))) --unary +-
+exp_:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
 exp_:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#exp_))) --multiplication
 exp_:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#exp_))) --addition
 exp_:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#exp_))) --comparison
@@ -210,7 +204,7 @@ exp_:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * 
 --TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
 exp_:push(unaryOpCapture(C'~', V(#exp_ + 1), V(#exp_)))    --unary not.
 
-exp_.exp_ = V(#exp_)
+exp_.exp = V(#exp_)
 
 exp_ = P(exp_)
 
@@ -226,7 +220,7 @@ local stats_ = {"stats",
     block = OB_ * stats * (CB_ + err"block: missing brace"),
 }
 stats_ = P(stats_)
-local filePatt = lpeg.Cg(lpeg.Cc(1), "lineNumber") * lpeg.Cg(lpeg.Cc(1), "lineStart") * ws_ * stats_ * (Cc"maxMatch:" * Cp() / print) * (-1 + err"file: eof expected.")
+local filePatt = I'A' * lpeg.Cg(lpeg.Cc(1), "lineNumber") * lpeg.Cg(lpeg.Cc(1), "lineStart") * I'B' * ws_ * I'C' * stats_ * I'D' * (Cc"maxMatch:" * Cp() / print) * (-1 + err"file: eof expected.")
 
 local function parse (input)
     --I pulled my hair for hours after splitting exp and stat, so now I'm putting leading spaces and EoF in the parser, to maje sur I have it only once

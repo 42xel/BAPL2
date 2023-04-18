@@ -114,13 +114,9 @@ function lpeg.I (msg, ncmt)
     --ncmt = true
     return ncmt and lpeg.P(msg) / print or lpeg.P(function (...) print(msg:format(...)); return true end)
 end
---list capture. Like table capture, but doesn't consume (or yield) named captures.
---as a quirk from patt/function I can't be bothered with fixing, it returns a singleton with the whole match instead of an empty list when patt makes no captures.
---TODO fix quirk using anonymous group capture ? looks like the perfect opportunity...
-function lpeg.Cl(patt)
-    return lpeg.P(patt) / function (...)
-        return {...}
-    end
+--Copies a named pattern.
+function lpeg.Cpy(target, source)
+    return lpeg.Cg(lpeg.Cb(source or '_'), target)
 end
 
 --------------------------------------------------------------------------------

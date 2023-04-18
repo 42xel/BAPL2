@@ -14,6 +14,8 @@ local _Gmeta = utils.set_GlpegShortHands"V"
 -- nodeGenerator(predicate, number, {args1}, {args2})   : uses a predicate on the numberth argument to chose another node function
 -- nodeGenerator(number)    : chooses the numberth argument
 -- nodeGenerator(number, args)  : generate a function with the numberth argument as the starting node (as opposed to creating a new one)
+--
+--TODO (after OO) incorporate lineCount
 --TODO : document usage and returned function
 local nodeGenerator = setmetatable({_sel = 1}, {
     __call = function (self, t, n, argst1, argst2, ...)
@@ -118,27 +120,39 @@ end
 --elementary patterns
 
 local locale = lpeg.locale()
-local function inc(...)
-    print("inc", ...)
-    local x = ...
+local function inc(x)
     return x + 1
 end
 
 --spaces
+--TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
 
---TODO : store lineNumber and lineStart inside or around the AST for reporting and syntax highlight
-local newLine = '\n' * lpeg.Cg(lpeg.Cb("lineNumber") / inc, "lineNumber") * lpeg.Cg(Cc"blabla" / print * Cp(), "lineStart")
-local ws = newLine + locale.space    --we might need ws or ws^1 in some places
+local lineComment = "#" * (P(1) - "\n")^0
+local comment = lineComment
+local newLine = '\n' --  * lpeg.Cg(lpeg.Cb("lineCount") / inc, "lineCount") * lpeg.Cg(Cp(), "lastLineStart")
+--TODO put spaces inside the grammar
+--local ws = V"ws"
+--local ws = V"ws_"
+local ws = newLine + locale.space + comment    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
 --TODO make msg an object ??
 --TODO use a patt argument for nested/chained errors ??
 --returns a pattern raising an error
+--local function err(msg)
+--    return Cmt(lpeg.Cb("lineCount") * lpeg.Cb("lastLineStart"), function (subject, p, n, s, ...)
+--        io.stderr:write(string.format("error in <input>:%d:%d\t", n, p - s + 1))    --TODO use filename
+--        io.stderr:write(msg .. '\n')
+--        os.exit()
+--    end)
+--end
 local function err(msg)
-    return Cmt(lpeg.Cb("lineNumber") * lpeg.Cb("lineStart"), function (subject, p, n, s, ...)
-        io.stderr:write(string.format("error in <input>:%d:%d\t", n, p - s + 1))    --TODO use filename
-        io.stderr:write(msg .. '\n')
-        os.exit()
+    return Cmt('', function (subject, p)
+        local lineStart
+        local _, lineNumber = subject:sub(1, p):gsub("()\n", function (pos) lineStart = pos end)
+            io.stderr:write(string.format("error in <input>:%d:%d\t", lineNumber + 1, p - lineStart + 1))    --TODO use filename
+            io.stderr:write(msg .. '\n')
+            os.exit()
     end)
 end
 
@@ -187,7 +201,7 @@ local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chain
     return abovePattern + opPatt * ws_ * abovePattern / nodeUnaryop + opPatt * ws^1 * selfPattern / nodeUnaryop --not allowing ++ , -- or +- , but allowing - -
 end
 local function infixCompChainCapture(opPatt, abovePattern)
-    return lpeg.Cl(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
+    return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
 --TODO : make every statement expression.
@@ -220,10 +234,12 @@ local stats_ = {"stats",
     block = OB_ * stats * (CB_ + err"block: missing brace"),
 }
 stats_ = P(stats_)
-local filePatt = I'A' * lpeg.Cg(lpeg.Cc(1), "lineNumber") * lpeg.Cg(lpeg.Cc(1), "lineStart") * I'B' * ws_ * I'C' * stats_ * I'D' * (Cc"maxMatch:" * Cp() / print) * (-1 + err"file: eof expected.")
 
+local filePatt = 
+    --lpeg.Cg(lpeg.Cc(1), "lineCount") * lpeg.Cg(lpeg.Cc(1), "lineStart") * 
+    ws_ * stats_
+     * (-1 + err"file: eof expected.") --TODO better error msg
 local function parse (input)
-    --I pulled my hair for hours after splitting exp and stat, so now I'm putting leading spaces and EoF in the parser, to maje sur I have it only once
     return filePatt:match(input)
 end
 --------------------------------------------------------------------------------

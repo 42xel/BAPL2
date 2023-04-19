@@ -2,7 +2,23 @@ local pt = require"pt".pt
 local lpeg = require "lpeg"
 local utils = require "utils"
 
-local _Gmeta = utils.set_GlpegShortHands""
+local P = lpeg.P
+local S = lpeg.S
+local R = lpeg.R
+local B = lpeg.B
+local V = lpeg.V
+
+local C = lpeg.C
+local Carg = lpeg.Carg
+local Cargs = lpeg.Cargs
+local Cb = lpeg.Cb
+local Cc = lpeg.Cc
+local Cf = lpeg.Cf
+local Cp = lpeg.Cp
+local Cs = lpeg.Cs
+local Ct = lpeg.Ct
+local Cmt = lpeg.Cmt
+
 --TODO : use a register machine for more expressiveness, notably giving the option to implement your left/right/logical-value idea on the dynamic level.
 --------------------------------------------------------------------------------
 --TODO use a table for switch case
@@ -81,6 +97,5 @@ local function run(code, mem, stack)
 end
 
 --------------------------------------------------------------------------------
-setmetatable(_G, _Gmeta)
 
 return run

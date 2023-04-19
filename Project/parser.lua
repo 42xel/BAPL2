@@ -3,7 +3,25 @@ local lpeg = require "lpeg"
 
 local utils = require "utils"
 
-local _Gmeta = utils.set_GlpegShortHands"V"
+--local _Gmeta = utils.set_GlpegShortHands"V"
+--local definition is somewhat more efficient and cleaner
+
+local P = lpeg.P
+local S = lpeg.S
+local R = lpeg.R
+local B = lpeg.B
+local V = lpeg.V
+
+local C = lpeg.C
+local Carg = lpeg.Carg
+local Cargs = lpeg.Cargs
+local Cb = lpeg.Cb
+local Cc = lpeg.Cc
+local Cf = lpeg.Cf
+local Cp = lpeg.Cp
+local Cs = lpeg.Cs
+local Ct = lpeg.Ct
+local Cmt = lpeg.Cmt
 
 --------------------------------------------------------------------------------
 --utils
@@ -15,7 +33,7 @@ local _Gmeta = utils.set_GlpegShortHands"V"
 -- nodeGenerator(number)    : chooses the numberth argument
 -- nodeGenerator(number, args)  : generate a function with the numberth argument as the starting node (as opposed to creating a new one)
 --
---TODO (after OO) incorporate lineCount
+--TODO (after OO) incorporate lineCount. 
 --TODO : document usage and returned function
 local nodeGenerator = setmetatable({_sel = 1}, {
     __call = function (self, t, n, argst1, argst2, ...)
@@ -127,9 +145,10 @@ end
 --spaces
 --TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
 
+local blockComment = "#{" * (P(1) - "#}")^0 * "#}"
 local lineComment = "#" * (P(1) - "\n")^0
-local comment = lineComment
-local newLine = '\n' --  * lpeg.Cg(lpeg.Cb("lineCount") / inc, "lineCount") * lpeg.Cg(Cp(), "lastLineStart")
+local comment = blockComment + lineComment
+local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
 --TODO put spaces inside the grammar
 --local ws = V"ws"
 --local ws = V"ws_"
@@ -138,14 +157,6 @@ local ws_ = ws^0
 
 --TODO make msg an object ??
 --TODO use a patt argument for nested/chained errors ??
---returns a pattern raising an error
---local function err(msg)
---    return Cmt(lpeg.Cb("lineCount") * lpeg.Cb("lastLineStart"), function (subject, p, n, s, ...)
---        io.stderr:write(string.format("error in <input>:%d:%d\t", n, p - s + 1))    --TODO use filename
---        io.stderr:write(msg .. '\n')
---        os.exit()
---    end)
---end
 local function err(msg)
     return Cmt('', function (subject, p)
         local lineStart
@@ -168,7 +179,7 @@ local function numeralCapture(digit, comma)
     return (digit^0 * (comma * digit^0)^-1) - ((comma+'')*-(digit+comma))
 end
 --I might want to have coding numeral stuck to variable identifiers or very special operators, so no spaces at the end.
-local numeral = ('0' * lpeg.S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (S'eE' * digit^1)^-1) / tonumber / nodeNum
+local numeral = ('0' * S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (S'eE' * digit^1)^-1) / tonumber / nodeNum
 
 local alpha = R('az', 'AZ')
 local alphanum = alpha+digit
@@ -191,29 +202,29 @@ local printStat_ = '@' * ws_
 --elaborate patterns
 
 local function infixOpCapture(opPatt, abovePattern)
-    return lpeg.Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop) 
+    return Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop) 
 end
 local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern)  --set self to above to have a non asociative binary op.
-    --return lpeg.Cg(abovePattern, '_') * lpeg.Cg(lpeg.Cb('_') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, '_')^-1 * lpeg.Cb('_') --overkill.
+    --return Cg(abovePattern, '_') * Cg(Cb('_') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, '_')^-1 * Cb('_') --overkill.
     return abovePattern * (opPatt * selfPattern / nodeFoldBinopSuffix)^-1 / nodeFoldBinop
 end
 local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chaining. set self to above to disallow
     return abovePattern + opPatt * ws_ * abovePattern / nodeUnaryop + opPatt * ws^1 * selfPattern / nodeUnaryop --not allowing ++ , -- or +- , but allowing - -
 end
 local function infixCompChainCapture(opPatt, abovePattern)
-    return lpeg.Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
+    return Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
 end
 
 --TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
 local exp_ = Stack{"exp",
-    (numeral + var) * ws_ + OP_ * exp * CP_, --primary
+    (numeral + var) * ws_ + OP_ * V'exp' * CP_, --primary
 }
-exp_:push(infixOpCaptureRightAssoc(lpeg.C(lpeg.S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
-exp_:push(unaryOpCapture(lpeg.C(lpeg.S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
-exp_:push(infixOpCapture(lpeg.C(lpeg.S'*/%') * ws_, V(#exp_))) --multiplication
-exp_:push(infixOpCapture(lpeg.C(lpeg.S'+-') * ws_, V(#exp_))) --addition
-exp_:push(infixCompChainCapture(lpeg.C(lpeg.S'<>' * lpeg.P'='^-1 + lpeg.S'!=' * '=') * ws_, V(#exp_))) --comparison
+exp_:push(infixOpCaptureRightAssoc(C(S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
+exp_:push(unaryOpCapture(C(S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
+exp_:push(infixOpCapture(C(S'*/%') * ws_, V(#exp_))) --multiplication
+exp_:push(infixOpCapture(C(S'+-') * ws_, V(#exp_))) --addition
+exp_:push(infixCompChainCapture(C(S'<>' * P'='^-1 + S'!=' * '=') * ws_, V(#exp_))) --comparison
 --TODO : ponder and discuss priority. My idea : logical operator => very low prio.
 --TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
 exp_:push(unaryOpCapture(C'~', V(#exp_ + 1), V(#exp_)))    --unary not.
@@ -225,18 +236,18 @@ exp_ = P(exp_)
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 
 local stats_ = {"stats",
-    stat = block
+    stat = V'block'
         + ID * ws_ * Assign_ * exp_ / nodeAssign
         + ret_ * exp_ / nodeRet
         + printStat_ * exp_ / nodePrint
-        + SC_^(-1) * lpeg.Cc(emptyNode),
-    stats = (stat * (SC_ * stats)^-1 / nodeSeq),
-    block = OB_ * stats * (CB_ + err"block: missing brace"),
+        + SC_^(-1) * Cc(emptyNode),
+    stats = (V'stat' * (SC_ * V'stats')^-1 / nodeSeq),
+    block = OB_ * V'stats' * (CB_ + err"block: missing brace"),
 }
 stats_ = P(stats_)
 
 local filePatt = 
-    --lpeg.Cg(lpeg.Cc(1), "lineCount") * lpeg.Cg(lpeg.Cc(1), "lineStart") * 
+    --Cg(Cc(1), "lineCount") * Cg(Cc(1), "lineStart") * 
     ws_ * stats_
      * (-1 + err"file: eof expected.") --TODO better error msg
 local function parse (input)

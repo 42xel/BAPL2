@@ -2,6 +2,6 @@ a = 5;
 @2*-a*-2;
 #blabla
 p = 2^4^3 ; # com #full
-   #"vuvo
-return a%3;
+   #{"vuvo
+return a%3; #}
  b=a

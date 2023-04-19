@@ -155,11 +155,22 @@ local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "la
 local ws = newLine + locale.space + comment    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
+--TODO think about what a token is and isn''t, and about spacing (operators probably aren''t token)
+--token generator
+local function T_(token)
+    return token * ws_
+end
+--set token generator
+local function Ts_(tokens)
+    return S(tokens) * ws_
+end
+
+
 --TODO make msg an object ??
 --TODO use a patt argument for nested/chained errors ??
 local function err(msg)
     return Cmt('', function (subject, p)
-        local lineStart
+        local lineStart = 1
         local _, lineNumber = subject:sub(1, p):gsub("()\n", function (pos) lineStart = pos end)
             io.stderr:write(string.format("error in <input>:%d:%d\t", lineNumber + 1, p - lineStart + 1))    --TODO use filename
             io.stderr:write(msg .. '\n')
@@ -169,34 +180,46 @@ end
 
 local comma = S'.'
 
-local Assign_ = '=' * ws_
-
-local digit = R'09'
+--local digit = R'09'
+local digit = locale.digit
 local digits = digit^0
-local hexdigit = R('09', 'af', 'AF')
-local hexdigits = hexdigit^0
+--local xdigit = R('09', 'af', 'AF')
+local xdigit = locale.xdigit
+local xdigits = xdigit^0
+--TODO if no other pattern starts with a digit, or if numeral is the last choice among them, loosen this pattern and raise a more informative error
 local function numeralCapture(digit, comma)
     return (digit^0 * (comma * digit^0)^-1) - ((comma+'')*-(digit+comma))
 end
 --I might want to have coding numeral stuck to variable identifiers or very special operators, so no spaces at the end.
-local numeral = ('0' * S'xX' * numeralCapture(hexdigit, comma) + numeralCapture(digit, comma) * (S'eE' * digit^1)^-1) / tonumber / nodeNum
+local numeral = ('0' * S'xX' * numeralCapture(xdigit, comma) + numeralCapture(digit, comma) * (S'eE' * digit^1)^-1) / tonumber / nodeNum
 
-local alpha = R('az', 'AZ')
-local alphanum = alpha+digit
+local alpha = locale.alpha
+--local alpha = R('az', 'AZ')
+--local alnum = alpha+digit
+local alnum = locale.alnum
+
+local Rw_ = setmetatable({
+    "return",
+},{__call = function(self, word)
+    return self[word]
+end,
+    __index = function(self, key)
+        error("Not a reserved word: " .. key, 3)
+    end,
+})
+--local Rw = P(false)
+for _, w in ipairs(Rw_) do
+    Rw_[w] = w * - alnum * ws_
+--    Rw = Rw + w
+end
+--Rw = Rw * - alnum
 
 --no spaces, potentially, things like field access need to be stuck to the ID
 --the possibility of no spaces before seems more important though
-local ID = C((alpha + '_') * (alphanum + '_')^0)
+local ID = Cmt((alpha + '_') * (alnum + '_')^0, function (_, p, w)
+    return rawget(Rw_, w) == nil, w
+end)
 local var = ID / nodeVar
-
-local OP_ = '(' * ws_
-local CP_ = ')' * ws_
-local OB_ = '{' * ws_
-local CB_ = '}' * ws_
-local SC_ = ';' * ws_
-
-local ret_ = "return" * ws_
-local printStat_ = '@' * ws_
 
 --------------------------------------------------------------------------------
 --elaborate patterns
@@ -217,8 +240,8 @@ end
 
 --TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
-local exp_ = Stack{"exp",
-    (numeral + var) * ws_ + OP_ * V'exp' * CP_, --primary
+local exp_ = Stack{'exp',
+    (numeral + var) * ws_ + T_"(" * V'exp' * T_")", --primary
 }
 exp_:push(infixOpCaptureRightAssoc(C(S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
@@ -235,21 +258,21 @@ exp_ = P(exp_)
 
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 
-local stats_ = {"stats",
+local stats_ = {'stats',
     stat = V'block'
-        + ID * ws_ * Assign_ * exp_ / nodeAssign
-        + ret_ * exp_ / nodeRet
-        + printStat_ * exp_ / nodePrint
-        + SC_^(-1) * Cc(emptyNode),
-    stats = (V'stat' * (SC_ * V'stats')^-1 / nodeSeq),
-    block = OB_ * V'stats' * (CB_ + err"block: missing brace"),
+        + ID * ws_ * T_"=" * exp_ / nodeAssign
+        + Rw_"return" * exp_ / nodeRet
+        + T_'@' * exp_ / nodePrint
+        + T_';'^(-1) * Cc(emptyNode),
+    stats = (V'stat' * (T_';' * V'stats')^-1 / nodeSeq),
+    block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
 }
 stats_ = P(stats_)
 
 local filePatt = 
     --Cg(Cc(1), "lineCount") * Cg(Cc(1), "lineStart") * 
     ws_ * stats_
-     * (-1 + err"file: eof expected.") --TODO better error msg
+     * (-1 + err"file: syntax error.") --TODO better error msg
 local function parse (input)
     return filePatt:match(input)
 end

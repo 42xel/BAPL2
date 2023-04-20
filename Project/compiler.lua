@@ -20,16 +20,30 @@ local Cs = lpeg.Cs
 local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
+--TODO put every thing inside the compiler. Compile => __call, codeGen => field and child.
 --------------------------------------------------------------------------------
 --TODO (low prio) legible code for debug mode.
 
-local addCode = function(state, ast, opCode)
-    state.code:push(opCode)
-    return state, ast    --to allow chaining in pattern code blocks
+
+local varsn = Symbol() ; local Compiler = {
+    code = Stack{},
+    vars = setmetatable({[varsn] = 1},{
+        __index = function(self, key)
+            self[key] = self[varsn]
+            self[self[varsn] ] = key
+            self[varsn] = self[varsn] + 1
+            return self[key]
+        end,
+    })
+}
+
+function Compiler:addCode(ast, opCode)
+    self.code:push(opCode)
+    return self, ast    --to allow chaining in pattern code blocks
 end
-local addCodeField = function(state, ast, field)
-    state.code:push(ast[field])
-    return state, ast    --to allow chaining in pattern code blocks
+function Compiler:addCodeField(ast, field)
+    self.code:push(ast[field])
+    return self, ast    --to allow chaining in pattern code blocks
 end
 
 local codeOP = {
@@ -79,15 +93,15 @@ local codeGen = {
 --obfuscating ? 
 --TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
 switch.exp = lpeg.Switch{
-    number = Cargs(2) * Cc'push' / addCode * Cc'val' / addCodeField,
-    variable = Cargs(2)* Cc"load" / addCode ---[=[ 
+    number = Cargs(2) * Cc'push' / Compiler.addCode * Cc'val' / Compiler.addCodeField,
+    variable = Cargs(2)* Cc"load" / Compiler.addCode ---[=[ 
         / function(state, ast)
     -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
-       return addCode(state, ast, assert(rawget(state.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil) end,
+       return Compiler.addCode(state, ast, assert(rawget(state.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil) end,
     --]=]
        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
-    unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / codeOP.u) / addCode,
-    binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / codeOP.b) / addCode,
+    unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / codeOP.u) / Compiler.addCode,
+    binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / codeOP.b) / Compiler.addCode,
     --Could substitution be used for branching ?
     varop = Cargs(2) / function (state, ast)
         if ast.clause == "conjonction" then
@@ -105,33 +119,20 @@ switch.exp = lpeg.Switch{
 
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
-    ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / addCode,
-    print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / addCode,
-    assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / addCode / function(state, ast)
+    ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,
+    print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / Compiler.addCode,
+    assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end  * Cargs(2),
     seq = Cargs(2) * Cc'stat1' / codeGen.disp * Cc'stat2' / codeGen.disp,
     [lpeg.Switch.default] = invalidAst,
 }
 
 local function compile (ast)
-    local varsn = {} ; local state = {
-        code = Stack{},
-        vars = setmetatable({[varsn] = 1},{
-            __index = function(self, key)
-                self[key] = self[varsn]
-                self[self[varsn] ] = key
-                self[varsn] = self[varsn] + 1
-                return self[key]
-            end,
-        })
-    }
-    --codeStat(state, ast)
-    --switch.stat(state, ast)
-    codeGen.stat(state, ast)
-    state.code:push("push")
-    state.code:push(0)
-    state.code:push("ret")
-    return state.code
+    codeGen.stat(Compiler, ast)
+    Compiler.code:push("push")
+    Compiler.code:push(0)
+    Compiler.code:push("ret")
+    return Compiler.code
 end
 
 --------------------------------------------------------------------------------

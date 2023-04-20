@@ -3,9 +3,6 @@ local lpeg = require "lpeg"
 
 local utils = require "utils"
 
---local _Gmeta = utils.set_GlpegShortHands"V"
---local definition is somewhat more efficient and cleaner
-
 local P = lpeg.P
 local S = lpeg.S
 local R = lpeg.R
@@ -33,7 +30,7 @@ local Cmt = lpeg.Cmt
 -- nodeGenerator(number)    : chooses the numberth argument
 -- nodeGenerator(number, args)  : generate a function with the numberth argument as the starting node (as opposed to creating a new one)
 --
---TODO (after OO) incorporate lineCount. 
+--TODO (after OO) incorporate lineCount. Do you really need them ?
 --TODO : document usage and returned function
 local nodeGenerator = setmetatable({_sel = 1}, {
     __call = function (self, t, n, argst1, argst2, ...)
@@ -241,7 +238,7 @@ end
 --TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priorityst+2)))
 local exp_ = Stack{'exp',
-    (numeral + var) * ws_ + T_"(" * V'exp' * T_")", --primary
+    (numeral + var) * ws_ + T_"(" * V'exp' * (T_")" + err"primary: missing parentheses"), --primary
 }
 exp_:push(infixOpCaptureRightAssoc(C(S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-

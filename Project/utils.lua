@@ -1,23 +1,13 @@
 lpeg = require"lpeg"
 
 --------------------------------------------------------------------------------
---TODO remove and clean up the mess from the `self[key] = lpeg[x](key)` part (or the whole lpeg metatable for what matters).
---TODO Without a surprise, writing keywords directly as globals was a bad idea, _G is not empty to begin with.
-local function set_GlpegShortHands(x) 
-    local r = getmetatable(_G)
-    setmetatable(_G, {
-        __index = setmetatable(lpeg, {
-            __index = setmetatable({},{
-                __index = function (self, key)
-                    --print (key, x, rawget(lpeg, x))
-                    self[key] = rawget(lpeg, x)(key)
-                    return self[key]
-                end
-            })
-        })
-    })   --what could possibly go wrong ?
-    return r
+Prototype = {}
+function Prototype:new(t)
+    t = t or {}
+    self.__index = self
+    return setmetatable(t, self)
 end
+Class = Prototype:new{__call = Prototype.new}
 
 --------------------------------------------------------------------------------
 function get(t, k)
@@ -26,47 +16,39 @@ end
 function set(t, k, v)
     t[k] = v
 end
-function trspPrint(...)
-    print(...)
-    return ...
-end
+
 --------------------------------------------------------------------------------
 --TODO refactor in the light of OOP (textbook)
 --TODO description
-Stack = {
-    push = function(self, ...)
-        for _,v in ipairs {...} do
-            table.insert(self, v)
-        end
-    end,
-    pop = function(self, n) --pops one or several, in preserved order (inverse order of popping)
-        if n == nil or n == 1 then return table.remove(self, n) end
-        local r = {}
-        if n <= 0 then n = n + #self end    --0 : pops all, -1 pops all but 1, etc.
-        for i = n, 1, -1 do
-            r[i] = self:pop()
-        end
-        return table.unpack(r)
-    end,
-    unpack = table.unpack,
-    --a destructive method which returns a sequence of elements in order of popping (reverse order of indices)
-    _unstack_aux = function(self, n, ...)
-        if #self > 0 and n > 0 then
-            return self:_unstack_aux(n - 1, self:pop(), ...)
-        else return ... end
-    end,
-    unstack = function(self, n)
-        return self:_unstack_aux(n or #self)
-    end,
-    -- s(-1) gets the last element, s(-2) the next to last, etc.
-    __call = function(self, n)
-        return type(n) == "number" and (n > 0 and self[n] or self[#self + n + 1])
-    end,
-}
-Stack.__index = Stack
-setmetatable(Stack, {
-    __call = function(self, t) return setmetatable(t, self) end,
-})
+Stack = Class:new{}
+function Stack:push (...)
+    for _,v in ipairs {...} do
+        table.insert(self, v)
+    end
+end
+function Stack:pop (n) --pops one or several, in preserved order (inverse order of popping)
+    if n == nil or n == 1 then return table.remove(self, n) end
+    local r = {}
+    if n <= 0 then n = n + #self end    --0 : pops all, -1 pops all but 1, etc.
+    for i = n, 1, -1 do
+        r[i] = self:pop()
+    end
+    return table.unpack(r)
+end
+Stack.unpack = table.unpack
+--a destructive method which returns a sequence of elements in order of popping (reverse order of indices)
+function Stack:_unstack_aux (n, ...)
+    if #self > 0 and n > 0 then
+        return self:_unstack_aux(n - 1, self:pop(), ...)
+    else return ... end
+end
+function Stack:unstack (n)
+    return self:_unstack_aux(n or #self)
+end
+-- s(-1) gets the last element, s(-2) the next to last, etc.
+function Stack:__call (n)
+    return type(n) == "number" and (n > 0 and self[n] or self[#self + n + 1])
+end
 
 --------------------------------------------------------------------------------
 --returns a guaranteed unique key.

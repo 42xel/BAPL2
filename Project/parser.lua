@@ -20,6 +20,7 @@ local Cs = lpeg.Cs
 local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
+--TODO optimisation (eg with constant addition/multiplication etc)
 --------------------------------------------------------------------------------
 --utils
 

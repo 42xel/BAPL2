@@ -120,6 +120,7 @@ switch.exp = lpeg.Switch{
 
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
+    ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp * Cc"Zjmp" / Compiler.addCode,
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,
     print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / Compiler.addCode,
     assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)

@@ -31,6 +31,7 @@ local Cmt = lpeg.Cmt
 -- nodeGenerator(number, args)  : generate a function with the numberth argument as the starting node (as opposed to creating a new one)
 --
 --TODO (after OO) incorporate lineCount. Do you really need them ?
+--TODO use meta programming
 --TODO : document usage and returned function
 local nodeGenerator = setmetatable({_sel = 1}, {
     __call = function (self, t, n, argst1, argst2, ...)
@@ -107,6 +108,7 @@ local nodePrint = nodeGenerator{tag = "print", "exp"}
 local nodeAssign = nodeGenerator{tag = "assign", "id", "exp"}
 local nodeNum = nodeGenerator{tag = "number", "val"}
 local nodeVar = nodeGenerator{tag = "variable", "var"}
+local nodeIf = nodeGenerator{tag = "if", "exp_cond", "stat_then"}
 
 local nodeBinop = nodeGenerator{tag = "binop", "exp1", "op", "exp2"}
 local nodeFoldBinop = nodeGenerator(isNodeEmpty, 2, {1}, {2, {tag = "binop", "exp1"}})
@@ -197,6 +199,10 @@ local alnum = locale.alnum
 
 local Rw_ = setmetatable({
     "return",
+    "if",
+    "else",
+    "eslseif",
+    "therefore",
 },{__call = function(self, word)
     return self[word]
 end,
@@ -254,12 +260,13 @@ exp_.exp = V(#exp_)
 exp_ = P(exp_)
 
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
-
+--TODO : replace if with therefore. (after switching all statements to expressions)
 local stats_ = {'stats',
     stat = V'block'
         + ID * ws_ * T_"=" * exp_ / nodeAssign
-        + Rw_"return" * exp_ / nodeRet
+        + Rw_"if" * exp_ * V"block" / nodeIf
         + T_'@' * exp_ / nodePrint
+        + Rw_"return" * exp_ / nodeRet
         + T_';'^(-1) * Cc(emptyNode),
     stats = (V'stat' * (T_';' * V'stats')^-1 / nodeSeq),
     block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),

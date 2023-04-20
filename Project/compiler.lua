@@ -46,11 +46,12 @@ function Compiler:addCodeField(ast, field)
     return self, ast    --to allow chaining in pattern code blocks
 end
 
+--TODO raise error when incorrect operator is used.
 local codeOP = {
     u = {
         ['+'] = "plus",
         ['-'] = "minus",
-        ['~'] = "not",
+        ['!'] = "not",
     },
     b = {
         ['+'] = "add",

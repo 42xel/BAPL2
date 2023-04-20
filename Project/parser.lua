@@ -247,7 +247,7 @@ exp_:push(infixOpCapture(C(S'+-') * ws_, V(#exp_))) --addition
 exp_:push(infixCompChainCapture(C(S'<>' * P'='^-1 + S'!=' * '=') * ws_, V(#exp_))) --comparison
 --TODO : ponder and discuss priority. My idea : logical operator => very low prio.
 --TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
-exp_:push(unaryOpCapture(C'~', V(#exp_ + 1), V(#exp_)))    --unary not.
+exp_:push(unaryOpCapture(C'!', V(#exp_ + 1), V(#exp_)))    --unary not.
 
 exp_.exp = V(#exp_)
 

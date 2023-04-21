@@ -1,0 +1,120 @@
+--A module providing naked proactive promise
+--Naked means the user can inspect and temper with their internals as pleases
+--Proactive means Promise chaining is done using immediately called callback function, which means chaining occurs depth first (and FIFO)
+--This starkly contrast with JavaScript promises which push callback function to a stack in an asynchronous scheduler.
+--In particular, we need no scheduler and no coroutines. They might or might not be incorporated at some point, but only as alternative, heavier options.
+
+--TODO make standalone and publish of sort
+require "utils"
+
+--TODO code a Queue in utils 
+local Queue = Stack
+
+local function Tuple(...)
+    return function ()
+        return ...
+    end
+end
+
+-- a Promise prototype I guess
+--@construction
+--new
+--honor
+--betray
+--all
+--any
+--race
+--...
+--
+--@async
+--couroutine ? async
+--await (yield)
+--
+--@introspection
+--status
+--values() --function closure ?
+--honor
+--betray
+    --resolved(Promise) but not settled, see JS.
+-- __chaining_files (_zenQueue, _finallyQueue, ...)
+--
+--@chaining
+--_trigger
+--_callbackF
+--_callbackArgs
+--zen
+--zenv  --jus returns its argument instead of usnig a fns
+--zenp ?
+--catch
+--finally
+--therefore? else? (special then)
+--
+--@sugar
+--Promise.__call : triggers and yield values ?
+--PromiseLike.__call : create and trigger, by opposition with Promise.new which only creates ?
+local PromiseLike = Object{
+    status = "owed", --: "owed" | "honored" | "betrayed"
+}
+
+local Promise = PromiseLike{}
+
+--creates an empty Promise
+function Promise:new(t)
+    self.__index = self --also serves for chained promise to inherit from each other, notably there queues
+    return setmetatable(t or {}, Promise) --OTOH, no need for a long inheritance chain here, so Promise insteand of self.
+end
+function PromiseLike:__call(fn, ...)    --fn(honor, betray)
+    local r = self:new()
+    fn(r.honor, r.betray, ...)  --TODO pcall ?
+end
+function Promise:honor(...)
+    if self.status == "owed" then
+        self.values = Tuple(...)
+        --self._callback = nil
+        self.status = "honored"
+        for f in self._zenQueue.pop, self._zenQueue do    --TODO zenQueue has to be a queue of promesse somehow.
+            f(...)  --TODO pcall ? ok in the __call metamethod
+        end
+--        for f in self._finallyQueue.pop, self._finallyQueue do
+--            f() --TODO pcall ? ok in the __call metamethod
+--        end
+    end
+end
+--function Promise:betray(msg, ...)
+--    if self.status == "owed" then
+--        self.error = msg
+--        self.status = "betrayed"
+--        for _, q in ipairs {self.catchQueue, self.finallyQueue} do
+--            for f in q.pop, q do
+--                f(...)
+--            end
+--        end
+--    end
+--end
+
+
+--TODO zen (Promise) which function/syntax to use ? does
+function Promise:zen(fn)
+    local st = self.status
+    if st == "owed" then
+        local r = Promise:new{_callbackF = fn,}
+        self._zenQueue:push(r)
+        return r
+    elseif st == "honored" then
+        return Promise(function (h,b)
+            h(fn(self.values()))     --TODO pcall ? ok in the __call metamethod ?
+        end)
+    end
+end
+
+function Promise:_callbackF(...)
+    return ...
+end 
+function Promise:__call(...)
+    if self.status == "owed" then
+        self:honor(self._callbackF(...))
+    end
+    if self.status == "honored" then
+        return self.values()
+    end
+end

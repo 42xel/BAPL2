@@ -204,6 +204,7 @@ local Rw_ = setmetatable({
     "else",
     "eslseif",
     "therefore",
+    "goto",
 },{__call = function(self, word)
     return self[word]
 end,

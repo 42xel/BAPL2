@@ -30,6 +30,8 @@ local metaCompiler = Prototype:new()
 local Compiler = metaCompiler:new
 {
     code = Stack{},
+--TODO BiTable object ?
+    --A biderectional table of variable names and their numerical index in the memory
     vars = setmetatable({[varsn] = 1},{
         __index = function(self, key)
             self[key] = self[varsn]
@@ -37,7 +39,9 @@ local Compiler = metaCompiler:new
             self[varsn] = self[varsn] + 1
             return self[key]
         end,
-    })
+    }),
+    --A bidirectional table of labels and their numerical position
+    labels = {},
 }
 
 function Compiler:addCode(ast, opCode)
@@ -144,6 +148,7 @@ function metaCompiler:__call(ast)
     self.code:push("push")
     self.code:push(0)
     self.code:push("ret")
+--TODO add missing labels
     return self.code
 end
 --------------------------------------------------------------------------------

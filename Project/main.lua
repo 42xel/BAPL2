@@ -2,9 +2,9 @@ local pt = require "pt".pt
 local utils = require"utils"
 _DEBOGUE = utils.debogue
 
-parse = require"parser"
-compile = require"compiler"
-run = require"interpreter"
+local parse = require"parser"
+local compile = require"compiler"
+local run = require"interpreter"
 
 --_DEBOGUE.trace(pt(lpeg))
 --------------------------------------------------------------------------------

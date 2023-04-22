@@ -8,14 +8,41 @@
 require "utils"
 
 --TODO code a Queue in utils 
-local Queue = Stack
-
-local function Tuple(...)
-    return function ()
-        return ...
+local Stack = Object:new{}
+function Stack:push (...)
+    for _,v in ipairs {...} do
+        table.insert(self, v)
     end
 end
+function Stack:pop () --pops one or several, in preserved order (inverse order of popping)
+    local n = nil
+    if n == nil or n == 1 then return table.remove(self, n) end
+    local r = {}
+    if n <= 0 then n = n + #self end    --0 : pops all, -1 pops all but 1, etc.
+    for i = n, 1, -1 do
+        r[i] = self:pop()
+    end
+    return table.unpack(r)
+end
+Stack.unpack = table.unpack
+--a destructive method which returns a sequence of elements in order of popping (reverse order of indices)
+function Stack:_unstack_aux (n, ...)
+    if #self > 0 and n > 0 then
+        return self:_unstack_aux(n - 1, self:pop(), ...)
+    else return ... end
+end
+function Stack:unstack (n)
+    return self:_unstack_aux(n or #self)
+end
+-- s(-1) gets the last element, s(-2) the next to last, etc.
+---@diagnostic disable-next-line: duplicate-set-field
+function Stack:__call (n)
+    return type(n) == "number" and (n > 0 and self[n] or self[#self + n + 1])
+end
+local Queue = Stack
 
+--TODO use coroutines as defauult. They're great, they handle error as well !
+--TODO : rename current constructors to 'raw' and make the defauult semantically equivalent to rawConstructor(...).zen(await).
 -- a Promise prototype I guess
 --@construction
 --new
@@ -56,20 +83,29 @@ local PromiseLike = Object{
     status = "owed", --: "owed" | "honored" | "betrayed"
 }
 
-local Promise = PromiseLike{}
+local Promise = PromiseLike{} --__name = "PromiseLike", __tostring = "PromiseLike"}
 
 --creates an empty Promise
 function Promise:new(t)
     self.__index = self --also serves for chained promise to inherit from each other, notably there queues
+
+    self._zenQueue = Queue{}
+
     return setmetatable(t or {}, Promise) --OTOH, no need for a long inheritance chain here, so Promise insteand of self.
 end
 function PromiseLike:__call(fn, ...)    --fn(honor, betray)
     local r = self:new()
-    fn(r.honor, r.betray, ...)  --TODO pcall ?
+    fn(function(...)
+        r:honor(...)
+    end,
+    function(...)
+        r:betray(...)
+    end, ...)  --TODO pcall ?
 end
 function Promise:honor(...)
     if self.status == "owed" then
-        self.values = Tuple(...)
+        self.values = {...}
+        self.value = ...
         --self._callback = nil
         self.status = "honored"
         for f in self._zenQueue.pop, self._zenQueue do    --TODO zenQueue has to be a queue of promesse somehow.
@@ -102,7 +138,7 @@ function Promise:zen(fn)
         return r
     elseif st == "honored" then
         return Promise(function (h,b)
-            h(fn(self.values()))     --TODO pcall ? ok in the __call metamethod ?
+            h(fn(table.unpack(self.values)))     --TODO pcall ? ok in the __call metamethod ?
         end)
     end
 end
@@ -115,6 +151,8 @@ function Promise:__call(...)
         self:honor(self._callbackF(...))
     end
     if self.status == "honored" then
-        return self.values()
+        return table.unpack(self.values)
     end
 end
+
+return Promise

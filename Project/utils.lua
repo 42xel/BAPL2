@@ -1,3 +1,4 @@
+---@diagnostic disable: lowercase-global
 --TODO split utils in utils an lpegUtils
 lpeg = require"lpeg"
 
@@ -10,7 +11,14 @@ function Prototype:new(t)
     return setmetatable(t, self)
 end
 --defining __call as a default constructor.
-Object = Prototype:new{__call = Prototype.new}
+Object = {}
+function Object:new(t)
+    t = t or {}
+    self.__index = self
+    self.__call = self.new
+    return setmetatable(t, self)
+end
+setmetatable(Object, {__call = Object.new})
 
 function ProxyGen(getter, setter) return function (target, remote)
     getter = getter or function (target) return function (self, k)
@@ -19,7 +27,7 @@ function ProxyGen(getter, setter) return function (target, remote)
     getter = setter or function (target) return function (self, k, v)
         target[k] = v
     end end
-    return setmetatable(remote or {}, target or {}, {__index = getter(target), __newindex = setter(target)})
+    return setmetatable(remote or {}, {__index = getter(target), __newindex = setter(target)})
 end end
 
 --creates and maintain a dual object
@@ -209,5 +217,4 @@ end
 --------------------------------------------------------------------------------
 return {
     debogue = debogue,
-    set_GlpegShortHands = set_GlpegShortHands,
 }

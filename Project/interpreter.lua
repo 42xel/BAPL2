@@ -55,6 +55,7 @@ local function run(code, mem, stack)
     local function boolToInt (a) return a ~= 0 and 1 or 0 end
 --TODO after prototype/proxy is done, use Switch ? The issue here being
     local runSwitch = { -- = lpeg.Switch {
+        --basic
         push = P'' * inc * line / push,
         load = Cc(mem) * inc * line / get / push,
         store = Cc(mem) * inc * line * pop / set,
@@ -63,7 +64,10 @@ local function run(code, mem, stack)
             assert(#stack == 1, err)
             return true
         end,
+        --control structures
+        Zjmp = popop / function (b, a) if a == 0 then pc = b end end,
         --binary operators
+        --TODO use meta programming ?
         add = popop / function(b, a) return a + b end / push,
         sub = popop / function(b, a) return a - b end / push,
         mul = popop / function(b, a) return a * b end / push,

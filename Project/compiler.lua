@@ -2,6 +2,7 @@ local pt = require "pt".pt
 local lpeg = require"lpeg"
 
 local utils = require "utils"
+local Promise = require "Promise"
 
 local P = lpeg.P
 local S = lpeg.S
@@ -24,7 +25,6 @@ local Cmt = lpeg.Cmt
 --------------------------------------------------------------------------------
 --TODO (low prio) legible code for debug mode.
 
-
 local varsn = Symbol() ;
 local metaCompiler = Prototype:new()
 local Compiler = metaCompiler:new
@@ -40,8 +40,13 @@ local Compiler = metaCompiler:new
             return self[key]
         end,
     }),
-    --A bidirectional table of labels and their numerical position
-    labels = {},
+    --A  table of labels and their numerical position
+    labels = setmetatable({},{
+        __index = function (self, key)
+            self[key] = Promise:new()
+            return self[key]
+        end,
+    })
 }
 
 function Compiler:addCode(ast, opCode)
@@ -84,15 +89,18 @@ function zoo:invalidAst(ast)
 end
 function zoo:getVariable(ast)
     -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
+---@diagnostic disable-next-line: redundant-parameter
         return Compiler.addCode(self, ast, assert(rawget(self.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil)
 end
 local _invalidAst = Cargs(2) / zoo.invalidAst
 
 local switch = {}
+--relevant for metaCompiler.__call I guess
 Compiler.switch = switch
 local _codeDispPatt = C"exp" + C"stat"
 --(recursively) expands expression and statements into relevant code
 local codeGen = Compiler:new{}
+--relevant for metaCompiler.__call I guess
 Compiler.codeGen = codeGen
 function codeGen:disp(ast, field)
         local new_ast = ast[field]
@@ -128,17 +136,30 @@ switch.exp = lpeg.Switch{
         else
             error("invalid varop, unknown clause : " .. ast.clause)
         end
-    end  * Cargs(2),
+    end * Cargs(2),
     [lpeg.Switch.default] = _invalidAst,
 }
 
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
-    ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp * Cc"Zjmp" / Compiler.addCode,
+    --it would be simpler to only put the jump index in the opCode, but I get the feeling that pushing it on the stack opens the door to function pointers
+    ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
+        state.code:push"push"
+        state.code:push(0)
+        local pc = #state.code
+        state.labels[ast]:zen(function (v)  --Promises are a bit overkill, but I like he lazyness of not having to go back to pc myself.
+            state.code[pc] = v
+        end)
+        state.code:push"Zjmp"
+        codeGen:disp(ast, "stat_then")
+        state.labels[ast]:honor(#state.code)    --it's ok, the interpreter adds 1
+    end * Cargs(2),
+
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,
     print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / Compiler.addCode,
     assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end  * Cargs(2),
+        --state.code:push(state.vars[ast.id]) end  * Cargs(2),
     seq = Cargs(2) * Cc'stat1' / codeGen.disp * Cc'stat2' / codeGen.disp,
     [lpeg.Switch.default] = _invalidAst,
 }
@@ -148,7 +169,6 @@ function metaCompiler:__call(ast)
     self.code:push("push")
     self.code:push(0)
     self.code:push("ret")
---TODO add missing labels
     return self.code
 end
 --------------------------------------------------------------------------------

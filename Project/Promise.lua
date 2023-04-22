@@ -87,33 +87,42 @@ local Promise = PromiseLike{} --__name = "PromiseLike", __tostring = "PromiseLik
 
 --creates an empty Promise
 function Promise:new(t)
-    self.__index = self --also serves for chained promise to inherit from each other, notably there queues
+    self.__index = self --also serves for chained promise to inherit from each other, notably there queues.
+    --Or does it ? queue inheritance is litterally not simple and not in the right way, and there are much simpler way to go about propagating errors.
+    t = t or {}
+    t._zenQueue = Queue{}
 
-    self._zenQueue = Queue{}
-
-    return setmetatable(t or {}, Promise) --OTOH, no need for a long inheritance chain here, so Promise insteand of self.
+    return setmetatable(t, Promise) --OTOH, no need for a long inheritance chain here, so Promise instead of self.
 end
-function PromiseLike:__call(fn, ...)    --fn(honor, betray)
+function PromiseLike:__call(executor, ...)    --fn(honor, betray)
     local r = self:new()
-    fn(function(...)
+    executor(function(...)
         r:honor(...)
     end,
     function(...)
         r:betray(...)
     end, ...)  --TODO pcall ?
 end
+---triggers the subsequent zens, catches and finallies the promise might have.
+---honor is split because some constructors only need that part.
+function Promise:_resolveHonored()
+    self.status = "honored"
+    (function (...)
+        for f in self._zenQueue.pop, self._zenQueue do    --TODO zenQueue has to be a queue of promesse somehow.
+            f(...)  --TODO pcall ? ok in the __call metamethod
+        end
+    --     for f in self._finallyQueue.pop, self._finallyQueue do
+    --         f() --TODO pcall ? ok in the __call metamethod
+    --     end 
+    end)(table.unpack(self.values)) --Immediately Invoked Function Expression to optimize the vararg I guess.
+    ---@remark Using self.values as opposed to Promise:honor's vararg enables fiddling with the values table from the user if they wish so.
+end
 function Promise:honor(...)
     if self.status == "owed" then
         self.values = {...}
         self.value = ...
-        --self._callback = nil
-        self.status = "honored"
-        for f in self._zenQueue.pop, self._zenQueue do    --TODO zenQueue has to be a queue of promesse somehow.
-            f(...)  --TODO pcall ? ok in the __call metamethod
-        end
---        for f in self._finallyQueue.pop, self._finallyQueue do
---            f() --TODO pcall ? ok in the __call metamethod
---        end
+
+        self:_resolveHonored()
     end
 end
 --function Promise:betray(msg, ...)
@@ -128,17 +137,48 @@ end
 --    end
 --end
 
+function Promise:honored(...)
+    return self:new{
+        values = {...},
+        value = ...,
+        status = "honored",
+    }
+end
+--TODO Promise:betrayed
+
+---
+function Promise:all(...)
+    local nbOwed = select("#", ...)
+    if nbOwed == 0 then return self:honored(...) end
+
+    local r = self:new()
+    r.values = {}
+    r.value = {}
+    for i, p in ipairs{...} do
+        p:zen(function (...)
+            r.values[i] = {..., status = "honored"}
+            r.value[i] = ...
+            nbOwed = nbOwed - 1
+            if nbOwed == 0 then
+                r:_resolveHonored()
+            end
+        end
+    )
+    ---@TODO add p:catch
+    end
+    return r
+end
 
 --TODO zen (Promise) which function/syntax to use ? does
-function Promise:zen(fn)
+function Promise:zen(cb)
     local st = self.status
     if st == "owed" then
-        local r = Promise:new{_callbackF = fn,}
+        local r = Promise:new{_callbackF = cb,}
         self._zenQueue:push(r)
         return r
     elseif st == "honored" then
         return Promise(function (h,b)
-            h(fn(table.unpack(self.values)))     --TODO pcall ? ok in the __call metamethod ?
+            h(cb(table.unpack(self.values)))     --TODO pcall ? ok in the __call metamethod ?
         end)
     end
 end

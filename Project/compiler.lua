@@ -146,14 +146,17 @@ switch.stat = lpeg.Switch{
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
         state.code:push"push"
         state.code:push(0)
-        --TODO Promise.honored(#state.code).zen() maybe since the label is only used once, don't need to store it.
-        local pc = #state.code
-        state.labels[ast]:zen(function (v)  --Promises are a bit overkill, but I like he lazyness of not having to go back to pc myself.
-            state.code[pc] = v
-        end)
+        local pEndIf = Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself.
+        Promise:all(Promise:honored(#state.code), pEndIf):zen(function (pc, v)  --Promises are a bit overkill, but I like he lazyness of not having to go back to pc myself.
+            state.code[pc[1]] = v[1]
+        end) --- maybe since the label is only used once, don't need to store it.
+        --local pc = #state.code
+        --state.labels[ast]:zen(function (v)  --Promises are a bit overkill, but I like he lazyness of not having to go back to pc myself.
+        --    state.code[pc] = v
+        --end)
         state.code:push"Zjmp"
         codeGen:disp(ast, "stat_then")
-        state.labels[ast]:honor(#state.code)    --it's ok, the interpreter adds 1
+        pEndIf:honor(#state.code)    --it's ok, the interpreter adds 1
     end * Cargs(2),
 
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,

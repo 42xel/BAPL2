@@ -146,6 +146,7 @@ switch.stat = lpeg.Switch{
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
         state.code:push"push"
         state.code:push(0)
+        --TODO Promise.honored(#state.code).zen() maybe since the label is only used once, don't need to store it.
         local pc = #state.code
         state.labels[ast]:zen(function (v)  --Promises are a bit overkill, but I like he lazyness of not having to go back to pc myself.
             state.code[pc] = v

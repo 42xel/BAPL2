@@ -1,3 +1,5 @@
+--TODO  don't forget to se weak tables when applicable.
+
 --A module providing naked proactive promise
 --Naked means the user can inspect and temper with their internals as pleases
 --Proactive means Promise chaining is done using immediately called callback function, which means chaining occurs depth first (and FIFO)

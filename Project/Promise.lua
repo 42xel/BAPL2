@@ -83,9 +83,12 @@ local Queue = Stack
 --PromiseLike.__call : create and trigger, by opposition with Promise.new which only creates ?
 local PromiseLike = Object{
     status = "owed", --: "owed" | "honored" | "betrayed"
+    __name = "PromiseLike",
 }
 
-local Promise = PromiseLike{} --__name = "PromiseLike", __tostring = "PromiseLike"}
+---@class Promise
+---@field _zenQueue any
+local Promise = PromiseLike{}
 
 --creates an empty Promise
 function Promise:new(t)

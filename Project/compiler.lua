@@ -102,8 +102,9 @@ local codeGen = Compiler:new{}
 --relevant for metaCompiler.__call I guess
 Compiler.codeGen = codeGen
 function codeGen:disp(ast, field)
-        local new_ast = ast[field]
-        self.switch[_codeDispPatt:match(field)](new_ast.tag, self, new_ast)
+    if ast[field] == nil then return self, ast end
+    local new_ast = ast[field]
+    self.switch[_codeDispPatt:match(field)](new_ast.tag, self, new_ast)
     return self, ast
 end
 function codeGen:exp(ast)
@@ -139,27 +140,58 @@ switch.exp = lpeg.Switch{
     [lpeg.Switch.default] = _invalidAst,
 }
 
+--[[
+function writing a goto
+***
+You don't need to know the position of the target label in advance.
+Returns a Promise to be honored to that label position.
+***
+it would be simpler to only put the jump index in the opCode, but I get the feeling that pushing it on the stack opens the door to function pointers
+]]
+---@return Promise
+function Compiler:labelPromise(jmp, p)
+    p = p or Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself. Useful technique later on to implement gotos.
+    self.code:push"push"
+    self.code:push(0)
+    local pc = #self.code
+
+    p:zen(function (v)
+        self.code[pc] = v - (pc + 1)  --pc is the position of the jump value, pc+1 is the position of the "Zjmp" instruction.
+    end)
+    self.code:push(jmp)
+    return p
+end
+
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
     --it would be simpler to only put the jump index in the opCode, but I get the feeling that pushing it on the stack opens the door to function pointers
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
+        --[=[
         state.code:push"push"
         state.code:push(0)
-        local pEndIf = Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself.
+        local pEndThen = Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself. Useful technique later on to implement gotos.
         --the point of using Promise.honored here is to save current code position without using a local variable.
-        Promise:all(Promise:honored(#state.code), pEndIf):zen(function (pc, v) 
+        Promise:all(Promise:honored(#state.code), pEndThen):zen(function (pc, v)
             state.code[pc[1]] = v[1] - (pc[1] + 1)  --pc[1] is the position of the jump value, pc[1]+1 is the position of the "Zjmp" instruction.
         end)
-        state.code:push"Zjmp"
+        ]=]
+        local pEndThen = state:labelPromise"Zjmp"
         codeGen:disp(ast, "stat_then")
-        pEndIf:honor(#state.code)    --it's ok, the interpreter adds 1
-    end * Cargs(2),
 
+        if ast.stat_else then
+            local pEndIf = state:labelPromise"jmp"
+            pEndThen:honor(#state.code)    --it's ok, the interpreter adds 1
+            codeGen:disp(ast, "stat_else")
+            pEndIf:honor(#state.code)
+        else
+            pEndThen:honor(#state.code)
+        end
+    end * Cargs(2),
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,
     print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / Compiler.addCode,
     assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
-        state.code:push(state.vars[ast.id]) end  * Cargs(2),
-        --state.code:push(state.vars[ast.id]) end  * Cargs(2),
+        state.code:push(state.vars[ast.id]) end * Cargs(2),
+        --state.code:push(state.vars[ast.id]) end * Cargs(2),
     seq = Cargs(2) / function (state, ast)
         for _, s in ipairs(ast.stats) do
             state.codeGen:stat(s)

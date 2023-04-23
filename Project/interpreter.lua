@@ -65,6 +65,7 @@ local function run(code, mem, stack)
             return true
         end,
         --control structures
+        jmp = P'' * pop / function (b) pc = pc + b end,
         Zjmp = popop / function (b, a) if a == 0 then pc = pc + b end end,
         --binary operators
         --TODO use meta programming ?

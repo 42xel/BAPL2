@@ -306,7 +306,7 @@ local stats_ = {'stats',
 }
 stats_ = P(stats_)
 
-local filePatt = 
+local filePatt =
     --Cg(Cc(1), "lineCount") * Cg(Cc(1), "lineStart") * 
     ws_ * stats_
      * (-1 + err"file: syntax error.") --TODO better error msg

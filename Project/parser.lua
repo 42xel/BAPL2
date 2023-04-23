@@ -283,7 +283,7 @@ exp_ = P(exp_)
 --TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 --TODO : replace if with therefore. (after switching all statements to expressions)
 local stats_ = {'stats',
-    stat = V'block'
+    stat = (V'block'
         + ID * ws_ * T_"=" * exp_ / nodeAssign
         ---@TODO : implement a ternary operator instead
         ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
@@ -298,10 +298,11 @@ local stats_ = {'stats',
         ---@TODO ponder whether you want to od things like exp * ws^1 * exp, and give it a lower priority than that I guess
         + Rw_"if" * exp_ * V"stat" * (Rw_"else" * V"stat")^-1 / nodeIf
         + T_'@' * exp_ / nodePrint
-        + Rw_"return" * exp_ / nodeRet,
+        + Rw_"return" * exp_ / nodeRet
+        ) * T_';'^-1 * (- T_';' + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
     --stats = (T_';'^0 * (V'stat') * T_';'^0)^0 / nodeSeq,    --most permissive
-    stats = ((V'stat') * T_';'^-1 * (- T_';' + err"useless semi-colons are not allowed, you peasant!"))^0 / nodeSeq,
+    stats = V'stat'^0 / nodeSeq,
     block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
 }
 stats_ = P(stats_)

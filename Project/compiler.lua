@@ -147,14 +147,18 @@ You don't need to know the position of the target label in advance.
 Returns a Promise to be honored to that label position.
 ***
 it would be simpler to only put the jump index in the opCode, but I get the feeling that pushing it on the stack opens the door to function pointers
+***
+Promises are a bit overkill here, but useful technique later on to implement other control structures, in particular gotos.
+Besides, it makes it so I can use nearly the same syntax reguardless of whether the label is already figured out, and how many gotos go to the same label
+
+The real reason for me to use Promises though, is, as you may guess, for the pleasure of implementing them.
 ]]
 ---@return Promise
 function Compiler:labelPromise(jmp, p)
-    p = p or Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself. Useful technique later on to implement gotos.
+    p = p or Promise:new()
     self.code:push"push"
     self.code:push(0)
-    local pc = #self.code
-
+    local pc = #self.code   --saving the current position
     p:zen(function (v)
         self.code[pc] = v - (pc + 1)  --pc is the position of the jump value, pc+1 is the position of the "Zjmp" instruction.
     end)
@@ -164,17 +168,7 @@ end
 
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
-    --it would be simpler to only put the jump index in the opCode, but I get the feeling that pushing it on the stack opens the door to function pointers
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
-        --[=[
-        state.code:push"push"
-        state.code:push(0)
-        local pEndThen = Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself. Useful technique later on to implement gotos.
-        --the point of using Promise.honored here is to save current code position without using a local variable.
-        Promise:all(Promise:honored(#state.code), pEndThen):zen(function (pc, v)
-            state.code[pc[1]] = v[1] - (pc[1] + 1)  --pc[1] is the position of the jump value, pc[1]+1 is the position of the "Zjmp" instruction.
-        end)
-        ]=]
         local pEndThen = state:labelPromise"Zjmp"
         codeGen:disp(ast, "stat_then")
 

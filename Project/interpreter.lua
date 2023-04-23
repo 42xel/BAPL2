@@ -29,10 +29,6 @@ local function run(code, mem, stack)
     local trace = Stack{}
     local function push(v)
         --shouldn't happen, if it does, it most likely is an error in the compiler
-        --print()
-        --print(pt(code))
-        --print(pt(mem))
-        --print(pt(stack))
         if type(v) ~= "number" then error("trying to push a non number value:\t" .. tostring(v) ) end
         trace:push('<- ' .. v)
         stack:push(v)
@@ -53,7 +49,7 @@ local function run(code, mem, stack)
 
     local popop = P'' * pop * pop
     local function boolToInt (a) return a and 1 or 0 end
---TODO after prototype/proxy is done, use Switch ? The issue here being
+---@TODO after prototype/proxy is done, use Switch ? The issue here being
     local runSwitch = { -- = lpeg.Switch {
         --basic
         push = P'' * inc * line / push,

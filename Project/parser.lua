@@ -301,7 +301,6 @@ local stats_ = {'stats',
         + Rw_"return" * exp_ / nodeRet
         ) * T_';'^-1 * (- T_';' + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    --stats = (T_';'^0 * (V'stat') * T_';'^0)^0 / nodeSeq,    --most permissive
     stats = V'stat'^0 / nodeSeq,
     block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
 }

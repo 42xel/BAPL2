@@ -266,6 +266,13 @@ exp_ = P(exp_)
 local stats_ = {'stats',
     stat = V'block'
         + ID * ws_ * T_"=" * exp_ / nodeAssign
+        ---@TODO : implement a ternary operator instead
+        ---(if)? <exp> ((therefore|otherwise) <exp>)^0 else <exp>
+        ---where (therefore|otherwise) is right associative.
+        ---relate it to promise style : 
+            ---new a
+            ---a.therefore().else().therefore() ... --(therefore|otherwise) chain
+            ---a.else() --else
         + Rw_"if" * exp_ * V"block" / nodeIf
         + T_'@' * exp_ / nodePrint
         + Rw_"return" * exp_ / nodeRet

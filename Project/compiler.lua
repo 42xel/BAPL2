@@ -149,7 +149,7 @@ switch.stat = lpeg.Switch{
         local pEndIf = Promise:new() --Promises are a bit overkill here, but I like he lazyness of not having to go back to code position myself.
         --the point of using Promise.honored here is to save current code position without using a local variable.
         Promise:all(Promise:honored(#state.code), pEndIf):zen(function (pc, v) 
-            state.code[pc[1]] = v[1]
+            state.code[pc[1]] = v[1] - pc[1]
         end)
         state.code:push"Zjmp"
         codeGen:disp(ast, "stat_then")

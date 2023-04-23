@@ -21,7 +21,6 @@ local Cmt = lpeg.Cmt
 
 --TODO : use a register machine for more expressiveness, notably giving the option to implement your left/right/logical-value idea on the dynamic level.
 --------------------------------------------------------------------------------
---TODO use a table for switch case
 local function run(code, mem, stack)
     stack = stack or Stack{}
     mem = mem or {}
@@ -52,7 +51,7 @@ local function run(code, mem, stack)
     end
 
     local popop = P'' * pop * pop
-    local function boolToInt (a) return a ~= 0 and 1 or 0 end
+    local function boolToInt (a) return a and 1 or 0 end
 --TODO after prototype/proxy is done, use Switch ? The issue here being
     local runSwitch = { -- = lpeg.Switch {
         --basic
@@ -65,7 +64,7 @@ local function run(code, mem, stack)
             return true
         end,
         --control structures
-        Zjmp = popop / function (b, a) if a == 0 then pc = b end end,
+        Zjmp = popop / function (b, a) if a == 0 then pc = pc + b end end,
         --binary operators
         --TODO use meta programming ?
         add = popop / function(b, a) return a + b end / push,

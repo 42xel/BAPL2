@@ -21,6 +21,7 @@ local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
 --TODO optimisation (eg with constant addition/multiplication etc)
+---@TODO OOP : use __name and __tostring for custom objects.
 --------------------------------------------------------------------------------
 --utils
 
@@ -123,7 +124,7 @@ local nodePrint = nodeGenerator{tag = "print", "exp"}
 local nodeAssign = nodeGenerator{tag = "assign", "id", "exp"}
 local nodeNum = nodeGenerator{tag = "number", "val"}
 local nodeVar = nodeGenerator{tag = "variable", "var"}
-local nodeIf = nodeGenerator{tag = "if", "exp_cond", "stat_then"}
+local nodeIf = nodeGenerator{tag = "if", "exp_cond", "stat_then", "stat_else"}
 
 local nodeBinop = nodeGenerator{tag = "binop", "exp1", "op", "exp2"}
 local nodeFoldBinop = nodeGenerator(isNodeEmpty, 2, {1}, {2, {tag = "binop", "exp1"}})
@@ -227,7 +228,11 @@ end,
     end,
 })
 --local Rw = P(false)
-for _, w in ipairs(Rw_) do
+--for _, w in ipairs(Rw_) do    --ipairs apparently changed from 5.2 to 5.4, the stop case is no longer i > #t, but t[i] == nil instead, triggering __index.
+--I thought ipairs was supposed to be depreciated at some point, but I'm happy to see it sticking
+--this change is probably for the best, it now allows to do some stupid things like virtual/dynamic/infinite arrays using ipairs.
+for i = 1, #Rw_ do
+    local w = Rw_[i]
     Rw_[w] = w * - alnum * ws_
 --    Rw = Rw + w
 end
@@ -289,12 +294,14 @@ local stats_ = {'stats',
             ---a.else() --else
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* 
-        --- <exp> ?: <exp> (, <exp>)* ;
-        + Rw_"if" * exp_ * V"stat" / nodeIf-- * (Rw_"else" * V"stat")^-1 / nodeIf
+        --- <exp> ?: <exp> (, <exp>)* ; 
+        ---@TODO ponder whether you want to od things like exp * ws^1 * exp, and give it a lower priority than that I guess
+        + Rw_"if" * exp_ * V"stat" * (Rw_"else" * V"stat")^-1 / nodeIf
         + T_'@' * exp_ / nodePrint
         + Rw_"return" * exp_ / nodeRet,
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    stats = ((T_';'^0 * (V'stat') * T_';'^0)^0) / nodeSeq,
+    --stats = (T_';'^0 * (V'stat') * T_';'^0)^0 / nodeSeq,    --most permissive
+    stats = ((V'stat') * T_';'^-1 * (- T_';' + err"useless semi-colons are not allowed, you peasant!"))^0 / nodeSeq,
     block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
 }
 stats_ = P(stats_)

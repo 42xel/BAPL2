@@ -19,7 +19,8 @@ local Cs = lpeg.Cs
 local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
---TODO : use a register machine for more expressiveness, notably giving the option to implement your left/right/logical-value idea on the dynamic level.
+---@TODO : use a register machine for more expressiveness, notably giving the option to implement your left/right/logical-value idea on the dynamic level.
+---@TODO : trace with different level of precision and detail : opCodeLine   codeLine   corresponding code
 --------------------------------------------------------------------------------
 local function run(code, mem, stack)
     stack = stack or Stack{}

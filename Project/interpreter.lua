@@ -94,7 +94,7 @@ local function run(code, mem, stack)
     repeat
         inc()
         print(trace:unpack())
-        trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}
+        trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
     until runSwitch[code[pc]]:match'' == true
     return stack:unpack()
 end

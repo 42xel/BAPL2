@@ -21,7 +21,6 @@ local Cs = lpeg.Cs
 local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
---TODO put every thing inside the compiler. Compile => __call, codeGen => field and child.
 --------------------------------------------------------------------------------
 --TODO (low prio) legible code for debug mode.
 
@@ -161,7 +160,11 @@ switch.stat = lpeg.Switch{
     assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end  * Cargs(2),
         --state.code:push(state.vars[ast.id]) end  * Cargs(2),
-    seq = Cargs(2) * Cc'stat1' / codeGen.disp * Cc'stat2' / codeGen.disp,
+    seq = Cargs(2) / function (state, ast)
+        for _, s in ipairs(ast.stats) do
+            state.codeGen:stat(s)
+        end
+    end * Cargs(2),
     [lpeg.Switch.default] = _invalidAst,
 }
 

@@ -26,3 +26,7 @@ Executes a battery of mostly outdated tests.
 
 ## main.lua
 Executes the input code passed in the standard input.
+
+# Annotations
+I am using lua-language-server for Vscode, as well as the annotations they support.
+https://github.com/LuaLS/lua-language-server

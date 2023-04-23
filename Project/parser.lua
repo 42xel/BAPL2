@@ -24,25 +24,40 @@ local Cmt = lpeg.Cmt
 --------------------------------------------------------------------------------
 --utils
 
--- a function generator which generates node functions, used to parse captures as nodes of the ast
--- Usage: look at examples
--- nodeGenerator{tag = "tag", field1, field2}   : generates based on a template
--- nodeGenerator(predicate, number, {args1}, {args2})   : uses a predicate on the numberth argument to chose another node function
--- nodeGenerator(number)    : chooses the numberth argument
--- nodeGenerator(number, args)  : generate a function with the numberth argument as the starting node (as opposed to creating a new one)
---
---TODO (after OO) incorporate lineCount. Do you really need them ?
---TODO use meta programming
---TODO : document usage and returned function
+---@TODO developp and clean up the OO aspect of Node. Maybe replace nodeGenerator by Node
+local Node = Object{tag = "void"}
+local emptyNode = Node:new()
+--[[
+a function generator which generates node functions, used to parse captures as nodes of the ast
+***
+### Usage: 
+look at examples
+
+    nodeGenerator()  -- generates an empty node.
+    nodeGenerator{tag = "tag", field1, field2}   -- generates based on a template
+    nodeGenerator(predicate, number, {args1}, {args2})   -- uses a predicate on the numberth argument to chose another node function
+    nodeGenerator(number)    -- when 0 < n : chooses the numberth argument
+    nodeGenerator(number, args)  -- generate a function with the numberth argument as the starting node (as opposed to creating a new one)
+***
+#### TODO
+- (after OO) incorporate lineCount. Do you really need them ?
+- use meta programming
+- : document usage and returned function
+***
+### template:
+    {tag = "tag", [0] = vararg, field1, field2}
+]]
 local nodeGenerator = setmetatable({_sel = 1}, {
     __call = function (self, t, n, argst1, argst2, ...)
         if type(t) == "table" then
             local sel = self._sel
             return function (...)
-                local r = select(sel, {}, ...)
+                local r = select(sel, Node:new(), ...)
                 for k, v in pairs(t) do
                     local tk = type(k)
-                    if tk == "number" then  --variable stuff, such as exp1, exp2, stat1, stat2 ...
+                    if k == 0 then
+                        r[v] = {select(1, ...)} --variable stuff of variable number.
+                    elseif tk == "number" then  --variable stuff, such as exp1, exp2, stat1, stat2 ...
                         r[v] = select(k, ...)
                     elseif tk == "string" then  --constant stuff, such as tag
                         r[k] = v
@@ -65,7 +80,7 @@ local nodeGenerator = setmetatable({_sel = 1}, {
             return r
         elseif type(t) == "nil" then
             local sel = self._sel
-            return function(...) return select(sel, {}, ...) end--???
+            return function(...) return select(sel, Node:new(), ...) end--???
         else
             error("nodeGenerator() : first argument must be a table, a function or a number. Got "
                 .. tostring(t)
@@ -84,7 +99,6 @@ local nodeGenerator = setmetatable({_sel = 1}, {
 local function isNodeEmpty(n)
     return n == nil or n.tag == "void"
 end
-local emptyNode = {tag = "void"}
 
 --[[old nodes examples
 local function nodeSeq(stat1, stat2)
@@ -103,7 +117,7 @@ end
 --TODO : add comments?
 --TODO see whether isNodeEmpty is really necssary/helpful there.
 
-local nodeSeq = nodeGenerator(isNodeEmpty, 2, {1}, {{tag = "seq", "stat1", "stat2"}})
+local nodeSeq = nodeGenerator(isNodeEmpty, 2, {1}, {{tag = "seq", [0] = "stats"}})
 local nodeRet = nodeGenerator{tag = "return", "exp"}
 local nodePrint = nodeGenerator{tag = "print", "exp"}
 local nodeAssign = nodeGenerator{tag = "assign", "id", "exp"}
@@ -123,7 +137,7 @@ local nodeUnaryop = nodeGenerator{tag = "unaryop", "op", "exp"}    --local nodeU
 local function foldCompChain(t)
     --a < b < c will ultimately be transformed into (a<b) and (b<c)
     if #t == 1 then return t[1] end
-    local r = {
+    local r = Node:new{
         tag = "varop",
         eStack = Stack{},
         clause = "conjonction",
@@ -202,7 +216,7 @@ local Rw_ = setmetatable({
     "return",
     "if",
     "else",
-    "eslseif",
+    "elseif",
     "therefore",
     "goto",
 },{__call = function(self, word)
@@ -267,17 +281,20 @@ local stats_ = {'stats',
     stat = V'block'
         + ID * ws_ * T_"=" * exp_ / nodeAssign
         ---@TODO : implement a ternary operator instead
-        ---(if)? <exp> ((therefore|otherwise) <exp>)^0 else <exp>
+        ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
         ---where (therefore|otherwise) is right associative.
         ---relate it to promise style : 
             ---new a
             ---a.therefore().else().therefore() ... --(therefore|otherwise) chain
             ---a.else() --else
-        + Rw_"if" * exp_ * V"block" / nodeIf
+        --- <exp> ?: <exp> (, <exp>)* 
+        --- <exp> ?: <exp> (, <exp>)* 
+        --- <exp> ?: <exp> (, <exp>)* ;
+        + Rw_"if" * exp_ * V"stat" / nodeIf-- * (Rw_"else" * V"stat")^-1 / nodeIf
         + T_'@' * exp_ / nodePrint
-        + Rw_"return" * exp_ / nodeRet
-        + T_';'^(-1) * Cc(emptyNode),
-    stats = (V'stat' * (T_';' * V'stats')^-1 / nodeSeq),
+        + Rw_"return" * exp_ / nodeRet,
+    ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
+    stats = ((T_';'^0 * (V'stat') * T_';'^0)^0) / nodeSeq,
     block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
 }
 stats_ = P(stats_)

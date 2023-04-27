@@ -1,6 +1,8 @@
+package.path = "./lib/?.lua;" .. "./lib/?/init.lua;" .. package.path
+
 local pt = require "pt".pt
-local utils = require"utils"
-_DEBOGUE = utils.debogue
+--local utils = require"utils"
+--_DEBOGUE = utils.debogue
 
 local parse = require"parser"
 local compile = require"compiler"

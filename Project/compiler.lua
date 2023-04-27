@@ -1,6 +1,10 @@
 local pt = require "pt".pt
 local lpeg = require"lpeg"
 
+local Object = require"Object"
+local Stack = require"Stack"
+local Symbol = require"Symbol"
+
 local utils = require "utils"
 local Promise = require "Promise"
 
@@ -25,11 +29,14 @@ local Cmt = lpeg.Cmt
 --TODO (low prio) legible code for debug mode.
 
 local varsn = Symbol() ;
-local metaCompiler = Prototype:new()
+local metaCompiler = Object:new()
+---@class Compiler : Object
+---@field code Stack
+---@field vars table
+---@field new fun (self:Compiler, t?:table) : Compiler
 local Compiler = metaCompiler:new
 {
     code = Stack{},
---TODO BiTable object ?
     --A biderectional table of variable names and their numerical index in the memory
     vars = setmetatable({[varsn] = 1},{
         __index = function(self, key)
@@ -39,13 +46,13 @@ local Compiler = metaCompiler:new
             return self[key]
         end,
     }),
-    --A  table of labels and their numerical position
-    labels = setmetatable({},{
-        __index = function (self, key)
-            self[key] = Promise:new()
-            return self[key]
-        end,
-    })
+--    --A  table of labels and their numerical position
+--    labels = setmetatable({},{
+--        __index = function (self, key)
+--            self[key] = Promise:new()
+--            return self[key]
+--        end,
+--    })
 }
 
 function Compiler:addCode(ast, opCode)
@@ -102,8 +109,14 @@ local codeGen = Compiler:new{}
 --relevant for metaCompiler.__call I guess
 Compiler.codeGen = codeGen
 function codeGen:disp(ast, field)
-    if ast[field] == nil then return self, ast end
+    if ast[field] == nil then print(([[
+Warning empty field in codeGen.disp while parsing %s, looking for field %s.
+It may be anything from a mistake in the parser or the compiler to user malpractice with empty statements.
+THAT OR AN EFFING FORGOTTEN ':' BETWEEN codeGen and disp]])
+    :format(pt(ast), field)) return self, ast end
+    print(pt(ast))
     local new_ast = ast[field]
+    print(pt(new_ast))
     self.switch[_codeDispPatt:match(field)](new_ast.tag, self, new_ast)
     return self, ast
 end
@@ -166,6 +179,7 @@ function Compiler:labelPromise(jmp, p)
     return p
 end
 
+---@TODO cleaning : don't use code.disp when not necessary, use single quote instead of double.
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
@@ -181,12 +195,20 @@ switch.stat = lpeg.Switch{
             pEndThen:honor(#state.code)
         end
     end * Cargs(2),
+    ["while"] = Cargs(2) / function (state, ast)
+        local pStart = Promise:honored(#state.code)
+        codeGen:disp(ast, 'exp_cond')
+        local pEnd = state:labelPromise"Zjmp"
+        codeGen:disp(ast, 'stat')
+        state:labelPromise("jmp", pStart)
+        pEnd:honor(#state.code)
+    end * Cargs(2),
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,
     print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / Compiler.addCode,
     assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
         state.code:push(state.vars[ast.id]) end * Cargs(2),
         --state.code:push(state.vars[ast.id]) end * Cargs(2),
-    seq = Cargs(2) / function (state, ast)
+    seq = Cargs(2) / function (state, ast) ---@param state Compiler
         for _, s in ipairs(ast.stats) do
             state.codeGen:stat(s)
         end
@@ -194,7 +216,7 @@ switch.stat = lpeg.Switch{
     [lpeg.Switch.default] = _invalidAst,
 }
 
-function metaCompiler:__call(ast)
+function metaCompiler:__call(ast) ---@param self Compiler
     self.codeGen:stat(ast)
     self.code:push("push")
     self.code:push(0)

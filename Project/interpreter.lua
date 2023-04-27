@@ -1,6 +1,7 @@
 local pt = require"pt".pt
 local lpeg = require "lpeg"
-local utils = require "utils"
+local Stack = require"Stack"
+require "utils"
 
 local P = lpeg.P
 local S = lpeg.S
@@ -91,7 +92,7 @@ local function run(code, mem, stack)
 
     repeat
         inc()
-        print(trace:unpack())
+        --print(trace:unpack())
         trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
     until runSwitch[code[pc]]:match'' == true
     return stack:unpack()

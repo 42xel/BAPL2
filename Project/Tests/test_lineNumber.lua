@@ -1,3 +1,5 @@
+package.path = "./lib/?.lua;" .. "./lib/?/init.lua;" .. package.path
+
 ---@diagnostic disable: lowercase-global
 local pt = require "pt".pt
 local lpeg = require"lpeg"

@@ -7,7 +7,8 @@
 --In particular, we need no scheduler and no coroutines. They might or might not be incorporated at some point, but only as alternative, heavier options.
 
 --TODO make standalone and publish of sort
-require "utils"
+--require "utils"
+local Object = require"Object"
 
 --TODO code a Queue in utils 
 local Stack = Object:new{}

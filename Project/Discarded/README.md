@@ -1,0 +1,1 @@
+This folder contains ideas or drafts that are, at least for now, deemed useless.

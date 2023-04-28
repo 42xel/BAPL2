@@ -1,4 +1,4 @@
-#{
+##{
 a = 5
 if a < 10
 if a > 5 {}
@@ -10,4 +10,4 @@ if 1
 if 2 {}
 else @3
 
-#if a < 10 if a > 5 {} else {} else @3
+if a < 10 if a > 5 {} else {} else @3

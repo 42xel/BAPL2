@@ -18,6 +18,7 @@ function ProxyGen(getter, setter) return function (target, remote)
     return setmetatable(remote or {}, {__index = getter(target), __newindex = setter(target)})
 end end
 
+--[[
 --creates and maintain a dual object
 Dual = Object{
     proxy = ProxyGen(nil,
@@ -69,3 +70,4 @@ function Dual:new(t1, t2)
     return r1, r2
 end
 
+--]]

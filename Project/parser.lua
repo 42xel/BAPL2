@@ -1,9 +1,8 @@
 local pt = require "pt".pt
 local lpeg = require "lpeg"
 
-local Object = require"Object"-- print(Object, Object.__index)
-local Stack = require"Stack"-- print(Stack, Stack.__index)
---local tst = Stack() print(Stack) print(Stack.__index)
+local Object = require"Object"
+local Stack = require"Stack"
 require "utils"
 
 local P = lpeg.P
@@ -26,9 +25,7 @@ local Cmt = lpeg.Cmt
 ---@TODO optimisation (eg with constant addition/multiplication etc)
 ---@TODO OOP : use __name and __tostring for custom objects.
 --------------------------------------------------------------------------------
---Node
 
----@TODO developp and clean up the OO aspect of Node. Maybe replace nodeGenerator by Node
 local MetaNode = Object{__name = "MetaNode"}
 local Node = MetaNode{__name = "Node",tag = "void", _sel = 1}
 --[[
@@ -37,28 +34,26 @@ a function generator which generates node functions, used to parse captures as n
 ### Usage: 
 look at examples
 
-    nodeGenerator()  -- generates an empty node.
-    nodeGenerator{tag = "tag", field1, field2}   -- generates based on a template
-    nodeGenerator(predicate, number, {args1}, {args2})   -- uses a predicate on the numberth argument to chose another node function
-    nodeGenerator(number)    -- when 0 < n : chooses the numberth argument
-    nodeGenerator(number, args)  -- generate a function with the numberth argument as the starting node (as opposed to creating a new one)
+    Node()  -- generates an empty node.
+    Node{tag = "tag", field1, field2}   -- generates based on a template
+    Node(predicate, number, {args1}, {args2})   -- uses a predicate on the numberth argument to chose another node function
+    Node(number)    -- when 0 < n : chooses the numberth argument
+    Node(number, args)  -- generate a function with the numberth argument as the starting node (as opposed to creating a new one)
 ***
 #### TODO
 - (after OO) incorporate lineCount. Do you really need them ?
 - use meta programming
 - : document usage and returned function
 ***
-### template:
+### Node Templates:
     {tag = "tag", [0] = vararg, field1, field2}
+#### TODO
+        more examples, with explanations
 ]]
----@return fun(... : string | number | table) : {[string] : string | table}
 function MetaNode:__call (t, n, argst1, argst2, ...)
     if type(t) == "table" then
         local sel = self._sel
         return function (...)
-            print("t", pt(t))
-            print ("... of nodeX:", ...)
-            print ("sel of nodeX:", sel)
             local r = select(sel, {}, ...)
             for k, v in pairs(t) do
                 local tk = type(k)
@@ -70,20 +65,11 @@ function MetaNode:__call (t, n, argst1, argst2, ...)
                     r[k] = v
                 end
             end
-            print ("return of nodeX:", pt(r))
             return r
         end
     elseif type(t) == "function" then
         return function (...)
             if t(select(n, ...)) then
-                --print(1, pt(t))
-                --print(2, pt(self))
-                --print(Node, self)
-                --print(3, n)
-                --print(4, ...)
-                --print(argst1)
-                --print(argst2)
-                --print(Node[argst1])
                 return Node[argst1](...)
             else
                 return Node[argst2](...)
@@ -98,12 +84,11 @@ function MetaNode:__call (t, n, argst1, argst2, ...)
         local sel = self._sel
         return function(...) return select(sel, {}, ...) end
     else
-        error("nodeGenerator() : first argument must be a table, a function or a number. Got "
+        error("MetaNode:__call() : first argument must be a table, a function or a number. Got "
             .. tostring(t)
             .. (type(t) == "userdata" and " . You might be using something undefined (_G shenanigans)." or ''))
     end
 end
-print("Node : ", Node)
 Node.empty = Node()
 function MetaNode:__index(packedTable)
     if packedTable == nil then return Node.empty
@@ -116,33 +101,10 @@ function Node.isEmpty(self)
     return self == nil or self.tag == "void"
 end
 
---[[old nodes examples
-local function nodeSeq(stat1, stat2)
-    return isNodeEmpty(stat2) and stat1 or {tag = "seq", stat1 = stat1, stat2 = stat2}
-end
-local function nodeBinop(a, op, b)
-    return {
-        tag = "binop",
-        op = op,
-        exp1 = a,
-        exp2 = b,
-    }
-end
---all in all, 30 well invested lines of codes in the function generator to save 10 uses of the 'function' keywords, and give the linter a harder time.
---]]
---TODO : add comments?
---TODO see whether isNodeEmpty is really necssary/helpful there.
-
-local nodeSeq = Node{"tag", [0] = "stats"}  -- no constant tag to escape the annoying full pattern returned when no capture occurs
-local nodeRet = Node{tag = "return", "exp"}
-local nodePrint = Node{tag = "print", "exp"}
-local nodeAssign = Node{tag = "assign", "id", "exp"}
 local nodeNum = Node{tag = "number", "val"}
-local nodeVar = Node{tag = "variable", "var"}
-local nodeIf = Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
-local nodeWhile = Node{tag = "while", "exp_cond", "stat"}
 
 local nodeBinop = Node{tag = "binop", "exp1", "op", "exp2"}
+---@TODO see whether isNodeEmpty is really necssary/helpful there.
 local nodeFoldBinop = Node(Node.isEmpty, 2, {1}, {2, {tag = "binop", "exp1"}})
 local nodeFoldBinopSuffix = Node{tag = "binopSuffix", "op", "exp2"}
 local nodeUnaryop = Node{tag = "unaryop", "op", "exp"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
@@ -156,7 +118,6 @@ local function foldCompChain(t)
     --a < b < c will ultimately be transformed into (a<b) and (b<c)
     if #t == 1 then return t[1] end
     local r = nodeVarOp(Stack{})
-    print(pt(r))
     for i = 2, #t, 2 do
         r.eStack:push(nodeBinop(t[i-1], t[i], t[i+1]))
     end
@@ -194,7 +155,6 @@ end
 local function Ts_(tokens)
     return S(tokens) * ws_
 end
-
 
 --TODO make msg an object ??
 --TODO use a patt argument for nested/chained errors ??
@@ -242,11 +202,11 @@ end,
         error("Not a reserved word: " .. key, 3)
     end,
 })
---local Rw = P(false)
---for _, w in ipairs(Rw_) do    --ipairs apparently changed from 5.2 to 5.4, the stop case is no longer i > #t, but t[i] == nil instead, triggering __index.
---I thought ipairs was supposed to be depreciated at some point, but I'm happy to see it sticking
---this change is probably for the best, it now allows to do some stupid things like virtual/dynamic/infinite arrays using ipairs.
+
 for i = 1, #Rw_ do
+    --for _, w in ipairs(Rw_) do    --ipairs apparently changed from 5.2 to 5.4, the stop case is no longer i > #t, but t[i] == nil instead, triggering __index.
+    --I thought ipairs was supposed to be depreciated at some point, but I'm happy to see it sticking
+    --this change is probably for the best, it now allows to do some stupid things like virtual/dynamic/infinite arrays using ipairs.
     local w = Rw_[i]
     Rw_[w] = w * - alnum * ws_
 --    Rw = Rw + w
@@ -258,7 +218,7 @@ end
 local ID = Cmt((alpha + '_') * (alnum + '_')^0, function (_, p, w)
     return rawget(Rw_, w) == nil, w
 end)
-local var = ID / nodeVar
+local var = ID / Node{tag = "variable", "var"}
 
 --------------------------------------------------------------------------------
 --elaborate patterns
@@ -289,8 +249,9 @@ exp_:push(infixOpCapture(C(S'+-') * ws_, V(#exp_))) --addition
 exp_:push(infixCompChainCapture(C(S'<>' * P'='^-1 + S'!=' * '=') * ws_, V(#exp_))) --comparison
 --TODO : ponder and discuss priority. My idea : logical operator => very low prio.
 --TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
---exp_:push(unaryOpCapture(C'!', V(#exp_ + 1), V(#exp_)))    --unary not.
---exp_:push(unaryOpCapture(C'||', V(#exp_ + 1), V(#exp_)))    --binary or.
+exp_:push(unaryOpCapture(C'!', V(#exp_ + 1), V(#exp_)))    --unary not.
+exp_:push(infixOpCapture(C'&&' * ws_, V(#exp_)))    --binary and.
+exp_:push(infixOpCapture(C'||' * ws_, V(#exp_)))    --binary or.
 
 exp_.exp = V(#exp_)
 --setmetatable(exp_, nil)
@@ -300,7 +261,7 @@ exp_ = P(exp_)
 --TODO : replace if with therefore. (after switching all statements to expressions)
 local stats_ = {'stats',
     stat = (V'block'
-        + ID * ws_ * T_"=" * exp_ / nodeAssign
+        + ID * ws_ * T_"=" * exp_ / Node{tag = "assign", "id", "exp"}
         ---@TODO : implement a ternary operator instead
         ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
         ---where (therefore|otherwise) is right associative.
@@ -312,13 +273,13 @@ local stats_ = {'stats',
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* ; 
         ---@TODO ponder whether you want to od things like exp * ws^1 * exp, and give it a lower priority than that I guess
-        + Rw_"if" * exp_ * V"stat" * (Rw_"else" * V"stat")^-1 / nodeIf
-        + Rw_"while" * exp_ * V"stat" / nodeWhile
-        + T_'@' * exp_ / nodePrint
-        + Rw_"return" * exp_ / nodeRet
+        + Rw_"if" * exp_ * V"stat" * (Rw_"else" * V"stat")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
+        + Rw_"while" * exp_ * V"stat" / Node{tag = "while", "exp_cond", "stat"}
+        + T_'@' * exp_ / Node{tag = "print", "exp"}
+        + Rw_"return" * exp_ / Node{tag = "return", "exp"}
         ) * T_';'^-1 * (- T_';' + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    stats = Cc'seq' * V'stat'^0 / nodeSeq,    --Cc'seq' see nodeSeq
+    stats = Cc'seq' * V'stat'^0 / Node{"tag", [0] = "stats"},  -- no constant tag to escape the annoying full pattern returned when no capture occurs
     block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
 }
 stats_ = P(stats_)

@@ -67,24 +67,27 @@ end
 --TODO raise error when incorrect operator is used.
 Compiler.codeOP = {
     u = {
-        ['+'] = "plus",
-        ['-'] = "minus",
-        ['!'] = "not",
+        ['+'] = 'plus',
+        ['-'] = 'minus',
+        ['!'] = 'not',
     },
     b = {
-        ['+'] = "add",
-        ['-'] = "sub",
-        ['*'] = "mul",
-        ['/'] = "div",
-        ['%'] = "mod",
-        ['^'] = "pow",
+        ['+'] = 'add',
+        ['-'] = 'sub',
+        ['*'] = 'mul',
+        ['/'] = 'div',
+        ['%'] = 'mod',
+        ['^'] = 'pow',
     
-        ['<'] = "lt",
-        ['>'] = "gt",
-        ['>='] = "ge",
-        ['<='] = "le",
-        ['=='] = "eq",
-        ['!='] = "neq",
+        ['<'] = 'lt',
+        ['>'] = 'gt',
+        ['>='] = 'ge',
+        ['<='] = 'le',
+        ['=='] = 'eq',
+        ['!='] = 'neq',
+
+        ['&&'] = 'and',
+        ['||'] = 'or',
     },
 }
 
@@ -114,9 +117,7 @@ Warning empty field in codeGen.disp while parsing %s, looking for field %s.
 It may be anything from a mistake in the parser or the compiler to user malpractice with empty statements.
 THAT OR AN EFFING FORGOTTEN ':' BETWEEN codeGen and disp]])
     :format(pt(ast), field)) return self, ast end
-    print(pt(ast))
     local new_ast = ast[field]
-    print(pt(new_ast))
     self.switch[_codeDispPatt:match(field)](new_ast.tag, self, new_ast)
     return self, ast
 end
@@ -153,13 +154,12 @@ switch.exp = lpeg.Switch{
     [lpeg.Switch.default] = _invalidAst,
 }
 
+
 --[[
-function writing a goto
+function writing a goto to a position described by the next line of code.
 ***
 You don't need to know the position of the target label in advance.
 Returns a Promise to be honored to that label position.
-***
-it would be simpler to only put the jump index in the opCode, but I get the feeling that pushing it on the stack opens the door to function pointers
 ***
 Promises are a bit overkill here, but useful technique later on to implement other control structures, in particular gotos.
 Besides, it makes it so I can use nearly the same syntax reguardless of whether the label is already figured out, and how many gotos go to the same label
@@ -167,15 +167,14 @@ Besides, it makes it so I can use nearly the same syntax reguardless of whether 
 The real reason for me to use Promises though, is, as you may guess, for the pleasure of implementing them.
 ]]
 ---@return Promise
-function Compiler:labelPromise(jmp, p)
+function Compiler:jmp(jmp, p)
     p = p or Promise:new()
-    self.code:push"push"
+    self.code:push(jmp)
     self.code:push(0)
     local pc = #self.code   --saving the current position
     p:zen(function (v)
-        self.code[pc] = v - (pc + 1)  --pc is the position of the jump value, pc+1 is the position of the "Zjmp" instruction.
+        self.code[pc] = v - pc
     end)
-    self.code:push(jmp)
     return p
 end
 
@@ -183,11 +182,11 @@ end
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
-        local pEndThen = state:labelPromise"Zjmp"
+        local pEndThen = state:jmp"jmp_Z"
         codeGen:disp(ast, "stat_then")
 
         if ast.stat_else then
-            local pEndIf = state:labelPromise"jmp"
+            local pEndIf = state:jmp"jmp"
             pEndThen:honor(#state.code)    --it's ok, the interpreter adds 1
             codeGen:disp(ast, "stat_else")
             pEndIf:honor(#state.code)
@@ -198,9 +197,9 @@ switch.stat = lpeg.Switch{
     ["while"] = Cargs(2) / function (state, ast)
         local pStart = Promise:honored(#state.code)
         codeGen:disp(ast, 'exp_cond')
-        local pEnd = state:labelPromise"Zjmp"
+        local pEnd = state:jmp"jmp_Z"
         codeGen:disp(ast, 'stat')
-        state:labelPromise("jmp", pStart)
+        state:jmp("jmp", pStart)
         pEnd:honor(#state.code)
     end * Cargs(2),
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,

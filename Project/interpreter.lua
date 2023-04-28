@@ -62,21 +62,24 @@ local function run(code, mem, stack)
             return true
         end,
         --control structures
-        jmp = P'' * pop / function (b) pc = pc + b end,
-        Zjmp = popop / function (b, a) if a == 0 then pc = pc + b end end,
+        jmp = P'' * inc * line / function (b) pc = pc + b end,
+        jmp_Z = P'' * pop * inc * line / function (a, b) if a == 0 then pc = pc + b end end,
         --binary operators
         --TODO use meta programming ?
+        --binary operations
         add = popop / function(b, a) return a + b end / push,
         sub = popop / function(b, a) return a - b end / push,
         mul = popop / function(b, a) return a * b end / push,
         div = popop / function(b, a) return a / b end / push,
         mod = popop / function(b, a) return a % b end / push,
         pow = popop / function(b, a) return a ^ b end / push,
+        ["and"] = popop / function(b, a) return a == 0 and a or b end / push,
+        ["or"]  = popop / function(b, a) return a == 0 and b  or a end / push,
         --unary operations
         plus = P'' / push,
         minus = P'' * pop / function(a) return -a end / push,
         ["not"] = P'' * pop / function(a) return a == 0 and 1 or 0 end / push,
-        --binary operations
+        --binary comparisons
         lt = popop / function(b, a) return a < b end / boolToInt / push,
         le = popop / function(b, a) return a <= b end / boolToInt / push,
         gt = popop / function(b, a) return a > b end / boolToInt / push,

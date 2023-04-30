@@ -234,9 +234,8 @@ exp_:push(infixOpCaptureRightAssoc(C"^" * ws_, V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
 exp_:push(infixOpCapture(C(S"*/%") * ws_, V(#exp_))) --multiplication
 exp_:push(infixOpCapture(C(S"+-") * ws_, V(#exp_))) --addition
+---comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses makes sense.
 exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * ws_, V(#exp_), 'compChain')) --comparison
----@TODO : ponder and discuss priority. My idea : logical operator => very low prio.
----@TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
 exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
 exp_:push(infixOpCaptureRightAssoc(C"&&" * ws_, V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
 exp_:push(infixOpCaptureRightAssoc(C"||" * ws_, V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.

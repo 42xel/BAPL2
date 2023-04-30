@@ -58,8 +58,8 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
     local function line()
         return true, code[pc]
     end
-
     local function boolToInt (a) return a and 1 or 0 end
+
 ---@TODO after prototype/proxy is done, use Switch ? The issue here being
 ---@TODO use meta programming to avoid code repetition ?
 ---I don't know, with Ultra editing, contiguous one liner code repetition is painless and harmless, and meta programming doesn't help when using lua-language-server
@@ -80,7 +80,6 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         jmpop_Z  = P'' * pop * inc * line / function (a, d) if a == 0 then pc = pc + d end end,
         jmp_NZ  = P'' * peek * inc * line / function (a, d) if a ~= 0 then pc = pc + d end end,
         jmpop_NZ = P'' * pop * inc * line / function (a, d) if a ~= 0 then pc = pc + d end end,
-        --binary operators
         ---@TODO use meta programming ?
         --binary operations
         add = Cmt(Cc(2), pop) / function(a, b) return a + b end             / push,

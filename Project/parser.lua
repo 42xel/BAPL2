@@ -228,29 +228,36 @@ end
 ---@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority
 local exp_ = Stack{'exp',
-    (numeral + var) * ws_ + T_"(" * V'exp' * (T_")" + err"primary: missing parentheses"), --primary
+    ws_ = ws_,
+    (numeral + var) * V'ws_' + T_"(" * V'exp' * (T_")" + err"primary: missing parentheses"), --primary
 }
-exp_:push(infixOpCaptureRightAssoc(C"^" * ws_, V(#exp_+1),  V(#exp_))) --power
+exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
-exp_:push(infixOpCapture(C(S"*/%") * ws_, V(#exp_))) --multiplication
-exp_:push(infixOpCapture(C(S"+-") * ws_, V(#exp_))) --addition
+exp_:push(infixOpCapture(C(S"*/%") * V'ws_', V(#exp_))) --multiplication
+exp_:push(infixOpCapture(C(S"+-") * V'ws_', V(#exp_))) --addition
 ---comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses makes sense.
-exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * ws_, V(#exp_), 'compChain')) --comparison
+exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * V'ws_', V(#exp_), 'compChain')) --comparison
 exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
-exp_:push(infixOpCaptureRightAssoc(C"&&" * ws_, V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
-exp_:push(infixOpCaptureRightAssoc(C"||" * ws_, V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
+exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
+exp_:push(infixOpCaptureRightAssoc(C"||" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
 
 exp_.exp = V(#exp_)
 --setmetatable(exp_, nil)
 exp_ = P(exp_)
+
+--for assignements :
+local lhs = V'lhs'
+local rhs = V'rhs'
 
 ---@TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 ---@TODO : replace if with therefore. (after switching all statements to expressions). "therefore" is like "and" but with different prio yields the last truthy expression rather than the first falsy.
 ---@TODO : else is
 ---@TODO  => is the purely logical, right associative, `imply` and is enough 
 local stats_ = {'stats',
+    ws_ = ws_,
+    exp_ = exp_,
     stat = (V'block'
-        + ID * ws_ * T_"=" * exp_ / Node{tag = "assign", "id", "exp"}
+        + ID * V'ws_' * T_"=" * V'exp_' / Node{tag = "assign", "id", "exp"}
         ---@TODO : implement a ternary operator instead
         ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
         ---where (therefore|otherwise) is right associative.
@@ -262,10 +269,10 @@ local stats_ = {'stats',
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* ; 
         ---@TODO ponder whether you want to od things like exp * ws^1 * exp, and give it a lower priority than that I guess
-        + Rw_"if" * exp_ * V"stat" * (Rw_"else" * V"stat")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
-        + Rw_"while" * exp_ * V"stat" / Node{tag = "while", "exp_cond", "stat"}
-        + T_"@" * exp_ / Node{tag = "print", "exp"}
-        + Rw_"return" * exp_ / Node{tag = "return", "exp"}
+        + Rw_"if" * V'exp_' * V"stat" * (Rw_"else" * V"stat")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
+        + Rw_"while" * V'exp_' * V"stat" / Node{tag = "while", "exp_cond", "stat"}
+        + T_"@" * V'exp_' / Node{tag = "print", "exp"}
+        + Rw_"return" * V'exp_' / Node{tag = "return", "exp"}
         ) * T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
     stats = Cc'seq' * V'stat'^0 / Node(Node.isEmpty, 3, {Node.isEmpty, 2, {Node.empty}, {2}}, {{"tag", [0] = "stats"}}),  -- no constant tag to escape the annoying full pattern returned when no capture occurs

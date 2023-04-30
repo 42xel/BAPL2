@@ -86,9 +86,9 @@ print(patt:match'')
 
 --------------------------------------------------------------------------------
 --[[attempt to reproduce somthing wrong
---TODO the issue stems from the / operator, which consumes all captures, including named ones.
---TODO sounds like anon grouping might be the way ?
---TODO special non consuming pattern functorintorino-factory of sort ?
+---@TODO the issue stems from the / operator, which consumes all captures, including named ones.
+---@TODO sounds like anon grouping might be the way ?
+---@TODO special non consuming pattern functorintorino-factory of sort ?
 
 
 
@@ -99,7 +99,7 @@ local function inc(...)
     return x + 1
 end
 
---TODO : store lineNumber and lineStart inside or around the AST for reporting and syntax highlight
+---@TODO : store lineNumber and lineStart inside or around the AST for reporting and syntax highlight
 local newLine = '\n' * lpeg.Cg(lpeg.Cb("lineNumber") / inc, "lineNumber") * lpeg.Cg(lpeg.Cp(), "lineStart")
 local ws = newLine + locale.space    --we might need ws or ws^1 in some places
 local ws_ = ws^0

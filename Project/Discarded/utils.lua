@@ -48,7 +48,7 @@ Dual = Object{
 function Dual:new(t1, t2)
     t1 = t1 or {}
     t2 = t2 or {}
---TODO fill t1 and t2
+---@TODO fill t1 and t2
     local t3 = {}
 
     for k, v in pairs(t1) do

@@ -159,7 +159,7 @@ even better (no, but good challenge) : don't allow for anything other than alpha
 
 context prefix and implicit argument passing.
 
---the below is too verbose
+----the below is too verbose, discard
 coding camel case ?
 
 to curedADiseasedCatOrSuchDogWithMeduccineTheKnowwledgeAndAHerbAndHerb_curePets_someDescriptiveName

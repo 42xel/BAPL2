@@ -1,8 +1,8 @@
 local Object = require"Object"
 
 --------------------------------------------------------------------------------
---TODO refactor in the light of OOP (textbook)
---TODO description
+---@TODO refactor in the light of OOP (textbook)
+---@TODO description
 ---@class Stack : Object
 local Stack = Object:new{}
 function Stack:push (...)
@@ -10,8 +10,11 @@ function Stack:push (...)
         table.insert(self, v)
     end
 end
-function Stack:pop (n) --pops one or several, in preserved order (inverse order of popping)
-    if n == nil or n == 1 then return table.remove(self, n) end
+function Stack:peek () ---@TODO peeks one or several values, in preserved order
+    return self[#self]
+end
+function Stack:pop (n) --pops one or several values, in preserved order (inverse order of popping)
+    if n == nil or n == 1 then return table.remove(self) end
     local r = {}
     if n <= 0 then n = n + #self end    --0 : pops all, -1 pops all but 1, etc.
     for i = n, 1, -1 do

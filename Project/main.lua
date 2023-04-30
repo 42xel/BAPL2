@@ -1,3 +1,16 @@
+--[[
+Using lua-language-server ( https://marketplace.visualstudio.com/items?itemName=sumneko.lua , https://github.com/LuaLS/lua-language-server )
+***
+#### quote convention
+
+simple quotes ' ' are used for strings that are only used in internal representation. For the most case, they could be replaced by enums, but are still useful as strings for debug printing.
+
+double  quotes " " are used for strings which appear verbatim (in filename, source code, output, ...)
+]]
+---@diagnostic disable-next-line: unused-local
+_README = nil
+
+--------------------------------------------------------------------------------
 package.path = "./lib/?.lua;" .. "./lib/?/init.lua;" .. package.path
 
 local pt = require "pt".pt
@@ -10,10 +23,10 @@ local run = require"interpreter"
 
 --_DEBOGUE.trace(pt(lpeg))
 --------------------------------------------------------------------------------
---TODO : add an interface of sort
+---@TODO : add an interface of sort
 
---TODO update lua
-local input = io.read'*a'
+--------------------------------------------------------------------------------
+local input = io.read'a'
 print(input)
 
 local ast = parse (input)

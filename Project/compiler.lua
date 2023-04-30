@@ -1,3 +1,6 @@
+---@TODO : rewrite interpreter as a register machine
+---@TODO use enums to help lua-language-server helping me being consistent accross parser, compiler and interpreter
+
 local pt = require "pt".pt
 local lpeg = require"lpeg"
 
@@ -26,7 +29,7 @@ local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
 --------------------------------------------------------------------------------
---TODO (low prio) legible code for debug mode.
+---@TODO (low prio) legible code for debug mode.
 
 local varsn = Symbol() ;
 local metaCompiler = Object:new()
@@ -64,7 +67,7 @@ function Compiler:addCodeField(ast, field)
     return self, ast    --to allow chaining in pattern code blocks
 end
 
---TODO raise error when incorrect operator is used.
+---@TODO raise error when incorrect operator is used.
 Compiler.codeOP = {
     u = {
         ['+'] = 'plus',
@@ -78,18 +81,22 @@ Compiler.codeOP = {
         ['/'] = 'div',
         ['%'] = 'mod',
         ['^'] = 'pow',
-    
-        ['<'] = 'lt',
-        ['>'] = 'gt',
-        ['>='] = 'ge',
-        ['<='] = 'le',
-        ['=='] = 'eq',
-        ['!='] = 'neq',
 
         ['&&'] = 'and',
         ['||'] = 'or',
     },
+    c = {
+        ['<'] = 'c_lt',
+        ['>'] = 'c_gt',
+        ['>='] = 'c_ge',
+        ['<='] = 'c_le',
+        ['=='] = 'c_eq',
+        ['!='] = 'c_neq',
+    }
 }
+for k, v in pairs(Compiler.codeOP.c) do
+    Compiler.codeOP.b[k] = v:sub(3)
+end
 
 --a florilege of useful functions
 local zoo = Compiler:new()
@@ -128,33 +135,6 @@ function codeGen:stat(ast)
     self.switch.stat(ast.tag, self, ast)
 end
 
---Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
---Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf variable)
---obfuscating ? 
---TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
-switch.exp = lpeg.Switch{
-    number = Cargs(2) * Cc'push' / Compiler.addCode * Cc'val' / Compiler.addCodeField,
-    variable = Cargs(2)* Cc"load" / Compiler.addCode
-        / zoo.getVariable,
-       -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
-    unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.u) / Compiler.addCode,
-    binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.b) / Compiler.addCode,
-    --Could substitution be used for branching ?
-    varop = Cargs(2) / function (state, ast)
-        if ast.clause == "conjonction" then
-            codeGen.exp(state, ast.eStack[1])
-            for i = 2, #ast.eStack do
-                codeGen.exp(state, ast.eStack[i])
-                state.code:push"mul"
-            end
-        else
-            error("invalid varop, unknown clause : " .. ast.clause)
-        end
-    end * Cargs(2),
-    [lpeg.Switch.default] = _invalidAst,
-}
-
-
 --[[
 function writing a goto to a position described by the next line of code.
 ***
@@ -178,11 +158,61 @@ function Compiler:jmp(jmp, p)
     return p
 end
 
+function Compiler:Xjunction(jmp)
+    return Cargs(2) / function (state, ast)
+        codeGen.exp(state, ast.exp1)
+        local pEnd = state:jmp(jmp)
+        state.code:push'pop'
+        codeGen.exp(state, ast.exp2)
+        pEnd:honor(#state.code)
+    end * Cargs(2)
+end
+--Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
+--Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf variable)
+--obfuscating ? 
+---@TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
+switch.exp = lpeg.Switch{
+    number = Cargs(2) * Cc'push' / Compiler.addCode * Cc'val' / Compiler.addCodeField,
+    variable = Cargs(2)* Cc"load" / Compiler.addCode
+        / zoo.getVariable,
+       -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
+    unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.u) / Compiler.addCode,
+    binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.b) / Compiler.addCode,
+    conjunction = Compiler:Xjunction'jmp_Z',
+    disjunction = Compiler:Xjunction'jmp_NZ',
+    compChain = Cargs(2) / function (state, ast)
+        codeGen.exp(state, ast.chain[1])
+        local pFail = Promise:new()
+        for i = 3, #ast.chain - 2, 2 do
+            codeGen.exp(state, ast.chain[i])
+            state.code:push(Compiler.codeOP.c[ast.chain[i-1]])  --compares while consuming only the first argument
+            state:jmp('jmpop_Z', pFail)
+        end
+        codeGen.exp(state, ast.chain[#ast.chain])
+        state.code:push(Compiler.codeOP.b[ast.chain[#ast.chain - 1]])  --compares while consuming both arguments
+        if #ast.chain > 3 then
+            local pEnd = state:jmp'jmp'
+            pFail:honor(#state.code)
+            --print("bla", ast.chain[#ast.chain - 1])
+            state.code:push'pop'    --pop value
+            state.code:push'push'
+            state.code:push(0)
+            pEnd:honor(#state.code)
+        else    ---@TODO not letting a pending promise out in the open, not sure how necessary or sufficient it is. It probably isn't, to ponder when doing GC with promises.
+            ---@TODO probably better, but catch not inplemented yet
+            -- pFail.catch() pFail:betray()
+
+            pFail:honor(nil)
+        end
+    end * Cargs(2),
+    [lpeg.Switch.default] = _invalidAst,
+}
+
 ---@TODO cleaning : don't use code.disp when not necessary, use single quote instead of double.
 switch.stat = lpeg.Switch{
     void = lpeg.P'',
     ["if"] = Cargs(2) * Cc'exp_cond' / codeGen.disp / function (state, ast)
-        local pEndThen = state:jmp"jmp_Z"
+        local pEndThen = state:jmp"jmpop_Z" --consuming the stack top value after a conditional jump.
         codeGen:disp(ast, "stat_then")
 
         if ast.stat_else then
@@ -197,7 +227,7 @@ switch.stat = lpeg.Switch{
     ["while"] = Cargs(2) / function (state, ast)
         local pStart = Promise:honored(#state.code)
         codeGen:disp(ast, 'exp_cond')
-        local pEnd = state:jmp"jmp_Z"
+        local pEnd = state:jmp"jmpop_Z"
         codeGen:disp(ast, 'stat')
         state:jmp("jmp", pStart)
         pEnd:honor(#state.code)

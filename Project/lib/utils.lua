@@ -1,5 +1,5 @@
 --@diagnostic disable: lowercase-global
---TODO split utils in utils an lpegUtils
+---@TODO split utils in utils an lpegUtils
 lpeg = require"lpeg"
 
 local Object = require"Object"
@@ -15,7 +15,7 @@ end
 
 --------------------------------------------------------------------------------
 --lpeg fields
---TODO : cleaner, use inheritance or something.
+---@TODO : cleaner, use inheritance or something.
 
 lpeg.Cargs = setmetatable ({
 },{
@@ -41,7 +41,7 @@ lpeg.Cargs = setmetatable ({
     end,
 })
 --simple debugging pattern
---TODO msg.format ? allows much more things
+---@TODO msg.format ? allows much more things
 function lpeg.I (msg, ncmt)
     --ncmt = true
     return ncmt and lpeg.P(msg) / print or lpeg.P(function (...) print(msg:format(...)); return true end)

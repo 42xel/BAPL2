@@ -89,7 +89,7 @@ function MetaNode:__call (t, n, argst1, argst2, ...)
             .. (type(t) == "userdata" and " . You might be using something undefined (_G shenanigans)." or ''))
     end
 end
-Node.empty = Node()
+Node.empty = {tag = "void"}
 function MetaNode:__index(packedTable)
     if packedTable == nil then return Node.empty
     elseif type(packedTable) ~= "table" then return end
@@ -109,21 +109,6 @@ local nodeFoldBinop = Node(Node.isEmpty, 2, {1}, {2, {tag = "binop", "exp1"}})
 local nodeFoldBinopSuffix = Node{tag = "binopSuffix", "op", "exp2"}
 local nodeUnaryop = Node{tag = "unaryop", "op", "exp"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
 
-local nodeVarOp = Node{tag = "varop", clause = "conjonction", "eStack",}
---Sizeable issue, in a < b < c, expression b is duplicated.
---TODO : rework comparisons to do something smarter (and do it later) to compute middle terms only once.
---TODO For later, when I ll know flow, andmemory alloted to interpreter
---TODO Or maybe when I ll use leftValues
-local function foldCompChain(t)
-    --a < b < c will ultimately be transformed into (a<b) and (b<c)
-    if #t == 1 then return t[1] end
-    local r = nodeVarOp(Stack{})
-    for i = 2, #t, 2 do
-        r.eStack:push(nodeBinop(t[i-1], t[i], t[i+1]))
-    end
-    return r
-end
-
 --------------------------------------------------------------------------------
 --elementary patterns
 
@@ -133,20 +118,20 @@ local locale = lpeg.locale()
 --end
 
 --spaces
---TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
+---@TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
 ---@TODO : use doo/doone/doon't for block comments ?
 
 local blockComment = "#{" * (P(1) - "#}")^0 * "#}"
 local lineComment = "#" * (P(1) - "\n")^0
 local comment = blockComment + lineComment
 local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
---TODO put spaces inside the grammar
+---@TODO put spaces inside the grammar
 --local ws = V"ws"
 --local ws = V"ws_"
 local ws = newLine + locale.space + comment    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
---TODO think about what a token is and isn''t, and about spacing (operators probably aren''t token)
+---@TODO think about what a token is and isn''t, and about spacing (operators probably aren''t token)
 --token generator
 local function T_(token)
     return token * ws_
@@ -156,8 +141,8 @@ local function Ts_(tokens)
     return S(tokens) * ws_
 end
 
---TODO make msg an object ??
---TODO use a patt argument for nested/chained errors ??
+---@TODO make msg an object ??
+---@TODO use a patt argument for nested/chained errors ??
 local function err(msg)
     return Cmt('', function (subject, p)
         local lineStart = 1
@@ -176,7 +161,7 @@ local digits = digit^0
 --local xdigit = R('09', 'af', 'AF')
 local xdigit = locale.xdigit
 local xdigits = xdigit^0
---TODO if no other pattern starts with a digit, or if numeral is the last choice among them, loosen this pattern and raise a more informative error
+---@TODO if no other pattern starts with a digit, or if numeral is the last choice among them, loosen this pattern and raise a more informative error
 local function numeralCapture(digit, comma)
     return (digit^0 * (comma * digit^0)^-1) - ((comma+'')*-(digit+comma))
 end
@@ -221,44 +206,49 @@ end)
 local var = ID / Node{tag = "variable", "var"}
 
 --------------------------------------------------------------------------------
---elaborate patterns
+--elaborate patterns utils
 
 local function infixOpCapture(opPatt, abovePattern)
     return Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop)
 end
-local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern)  --set self to above to have a non asociative binary op.
+local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern, tag)  --set self to above to have a non-asociative binary op.
     --return Cg(abovePattern, '_') * Cg(Cb('_') * (opPatt * selfPattern / nodeFoldBinopSuffix) / nodeFoldBinop, '_')^-1 * Cb('_') --overkill.
-    return abovePattern * (opPatt * selfPattern / nodeFoldBinopSuffix)^-1 / nodeFoldBinop
+    return abovePattern * (opPatt * selfPattern / nodeFoldBinopSuffix)^-1 / Node(Node.isEmpty, 2, {1}, {2, {tag = tag or 'binop', 'exp1'}})
 end
 local function unaryOpCapture(opPatt, selfPattern, abovePattern)  --allows chaining. set self to above to disallow
     return abovePattern + opPatt * ws_ * abovePattern / nodeUnaryop + opPatt * ws^1 * selfPattern / nodeUnaryop --not allowing ++ , -- or +- , but allowing - -
 end
-local function infixCompChainCapture(opPatt, abovePattern)
-    return Ct(abovePattern * (opPatt * abovePattern)^0) / foldCompChain
+local function infixChainCapture(opPatt, abovePattern, tag)
+    return abovePattern * (opPatt * abovePattern)^0 / Node(Node.isEmpty, 3, {1}, {{tag = tag or 'chainop', [0] = 'chain'}})
 end
 
---TODO : make every statement expression.
+--------------------------------------------------------------------------------
+--expressions and statements
+
+---@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority
 local exp_ = Stack{'exp',
     (numeral + var) * ws_ + T_"(" * V'exp' * (T_")" + err"primary: missing parentheses"), --primary
 }
-exp_:push(infixOpCaptureRightAssoc(C(S'^') * ws_, V(#exp_+1),  V(#exp_))) --power
-exp_:push(unaryOpCapture(C(S'+-'), V(#exp_ + 1), V(#exp_))) --unary +-
-exp_:push(infixOpCapture(C(S'*/%') * ws_, V(#exp_))) --multiplication
-exp_:push(infixOpCapture(C(S'+-') * ws_, V(#exp_))) --addition
-exp_:push(infixCompChainCapture(C(S'<>' * P'='^-1 + S'!=' * '=') * ws_, V(#exp_))) --comparison
---TODO : ponder and discuss priority. My idea : logical operator => very low prio.
---TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
-exp_:push(unaryOpCapture(C'!', V(#exp_ + 1), V(#exp_)))    --unary not.
-exp_:push(infixOpCapture(C'&&' * ws_, V(#exp_)))    --binary and.
-exp_:push(infixOpCapture(C'||' * ws_, V(#exp_)))    --binary or.
+exp_:push(infixOpCaptureRightAssoc(C"^" * ws_, V(#exp_+1),  V(#exp_))) --power
+exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
+exp_:push(infixOpCapture(C(S"*/%") * ws_, V(#exp_))) --multiplication
+exp_:push(infixOpCapture(C(S"+-") * ws_, V(#exp_))) --addition
+exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * ws_, V(#exp_), 'compChain')) --comparison
+---@TODO : ponder and discuss priority. My idea : logical operator => very low prio.
+---@TODO : for example, comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses.
+exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
+exp_:push(infixOpCaptureRightAssoc(C"&&" * ws_, V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
+exp_:push(infixOpCaptureRightAssoc(C"||" * ws_, V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
 
 exp_.exp = V(#exp_)
 --setmetatable(exp_, nil)
 exp_ = P(exp_)
 
---TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
---TODO : replace if with therefore. (after switching all statements to expressions)
+---@TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
+---@TODO : replace if with therefore. (after switching all statements to expressions). "therefore" is like "and" but with different prio yields the last truthy expression rather than the first falsy.
+---@TODO : else is
+---@TODO  => is the purely logical, right associative, `imply` and is enough 
 local stats_ = {'stats',
     stat = (V'block'
         + ID * ws_ * T_"=" * exp_ / Node{tag = "assign", "id", "exp"}
@@ -275,14 +265,16 @@ local stats_ = {'stats',
         ---@TODO ponder whether you want to od things like exp * ws^1 * exp, and give it a lower priority than that I guess
         + Rw_"if" * exp_ * V"stat" * (Rw_"else" * V"stat")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
         + Rw_"while" * exp_ * V"stat" / Node{tag = "while", "exp_cond", "stat"}
-        + T_'@' * exp_ / Node{tag = "print", "exp"}
+        + T_"@" * exp_ / Node{tag = "print", "exp"}
         + Rw_"return" * exp_ / Node{tag = "return", "exp"}
-        ) * T_';'^-1 * (- T_';' + err"useless semi-colons are not allowed, you peasant!"),
+        ) * T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    stats = Cc'seq' * V'stat'^0 / Node{"tag", [0] = "stats"},  -- no constant tag to escape the annoying full pattern returned when no capture occurs
-    block = T_'{' * V'stats' * (T_'}' + err"block: missing brace"),
+    stats = Cc'seq' * V'stat'^0 / Node(Node.isEmpty, 3, {Node.isEmpty, 2, {Node.empty}, {2}}, {{"tag", [0] = "stats"}}),  -- no constant tag to escape the annoying full pattern returned when no capture occurs
+    block = T_"{" * V'stats' * (T_"}" + err"block: missing brace"),
 }
 stats_ = P(stats_)
+
+--------------------------------------------------------------------------------
 
 local filePatt =
     --Cg(Cc(1), "lineCount") * Cg(Cc(1), "lineStart") * 

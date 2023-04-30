@@ -1,4 +1,4 @@
---TODO  don't forget to se weak tables when applicable.
+---@TODO  don't forget to se weak tables when applicable.
 
 --A module providing naked proactive promise
 --Naked means the user can inspect and temper with their internals as pleases
@@ -6,11 +6,11 @@
 --This starkly contrast with JavaScript promises which push callback function to a stack in an asynchronous scheduler.
 --In particular, we need no scheduler and no coroutines. They might or might not be incorporated at some point, but only as alternative, heavier options.
 
---TODO make standalone and publish of sort
+---@TODO make standalone and publish of sort
 --require "utils"
 local Object = require"Object"
 
---TODO code a Queue in utils 
+---@TODO code a Queue in utils 
 local Stack = Object:new{}
 function Stack:push (...)
     for _,v in ipairs {...} do
@@ -44,8 +44,8 @@ function Stack:__call (n)
 end
 local Queue = Stack
 
---TODO use coroutines as defauult. They're great, they handle error as well !
---TODO : rename current constructors to 'raw' and make the defauult semantically equivalent to rawConstructor(...).zen(await).
+---@TODO use coroutines as defauult. They're great, they handle error as well !
+---@TODO : rename current constructors to 'raw' and make the defauult semantically equivalent to rawConstructor(...).zen(await).
 -- a Promise prototype I guess
 --@construction
 --new
@@ -150,7 +150,7 @@ function Promise:honored(...)
         status = "honored",
     }
 end
---TODO Promise:betrayed
+---@TODO Promise:betrayed
 
 ---
 function Promise:all(...)
@@ -175,7 +175,7 @@ function Promise:all(...)
     return r
 end
 
---TODO zen (Promise) which function/syntax to use ? does
+---@TODO zen (Promise) which function/syntax to use ? does
 function Promise:zen(cb)
     local st = self.status
     if st == "owed" then

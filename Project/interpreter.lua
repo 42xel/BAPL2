@@ -63,7 +63,7 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
 ---@TODO after prototype/proxy is done, use Switch ? The issue here being
 ---@TODO use meta programming to avoid code repetition ?
 ---I don't know, with Ultra editing, contiguous one liner code repetition is painless and harmless, and meta programming doesn't help when using lua-language-server
-    local runSwitch = { -- = lpeg.Switch {
+    local runSwitch = lpeg.Switch {
         --basic
         push = P'' * inc * line / push,
         pop = P'' * pop / 0,
@@ -118,7 +118,7 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         inc()
         print(trace:unpack())
         trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
-    until runSwitch[code[pc]]:match'' == true -- or print(pc, code[pc], runSwitch[code[pc]])
+    until runSwitch(code[pc]) == true -- or print(pc, code[pc], runSwitch[code[pc]])
     return stack:unpack()
 end
 

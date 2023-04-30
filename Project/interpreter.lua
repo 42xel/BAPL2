@@ -1,4 +1,4 @@
----@TODO : rewrite as a register machine
+---@TODO : rewrite as a register machine in C++, Kotlin or Rust
 
 local pt = require"pt".pt
 local lpeg = require "lpeg"
@@ -108,6 +108,10 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         c_ge = Cmt(Cc(2), pop) / function(a, b) return b,  boolToInt(a >= b) end / push,
         c_eq = Cmt(Cc(2), pop) / function(a, b) return b,  boolToInt(a == b) end / push,
         c_neq = Cmt(Cc(2), pop) / function(a, b) return b,  boolToInt(a ~= b) end / push,
+        --arrays
+        new = P'',
+        set = P'',
+        get = P'',
         [lpeg.Switch.default] = C"unknown instruction:\t" / function (err)
             print(trace:unpack())
             --should not be happening, if it does, there most likely is an error in the compiler.

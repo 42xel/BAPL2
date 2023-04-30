@@ -1,4 +1,4 @@
----@TODO : rewrite interpreter as a register machine
+---@TODO : rewrite as a register machine in C++, Kotlin or Rust. Main factor for choice : memory allocation : Java : already has a GC.
 ---@TODO use enums to help lua-language-server helping me being consistent accross parser, compiler and interpreter
 
 local pt = require "pt".pt

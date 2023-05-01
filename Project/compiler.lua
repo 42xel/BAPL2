@@ -98,7 +98,8 @@ for k, v in pairs(Compiler.codeOP.c) do
     Compiler.codeOP.b[k] = v:sub(3)
 end
 
---a florilege of useful functions
+---a florilege of useful functions
+---@TODO why tf is it a compiler ??
 local zoo = Compiler:new()
 function zoo:invalidAst(ast)
     error("invalid ast : " .. pt(ast), 2)
@@ -106,14 +107,14 @@ end
 function zoo:getVariable(ast)
     -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
 ---@diagnostic disable-next-line: redundant-parameter
-        return Compiler.addCode(self, ast, assert(rawget(self.vars, ast.var), "Variable used before definition:\t" .. ast.var), nil)
+        return Compiler.addCode(self, ast, assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s"):format(ast.var, #self.code)), nil)
 end
 local _invalidAst = Cargs(2) / zoo.invalidAst
 
 local switch = {}
 --relevant for metaCompiler.__call I guess
 Compiler.switch = switch
-local _codeDispPatt = C"exp" + C"stat"
+local _codeDispPatt = C'exp' + C'stat'
 --(recursively) expands expression and statements into relevant code
 local codeGen = Compiler:new{}
 --relevant for metaCompiler.__call I guess
@@ -122,7 +123,8 @@ function codeGen:disp(ast, field)
     if ast[field] == nil then print(([[
 Warning empty field in codeGen.disp while parsing %s, looking for field %s.
 It may be anything from a mistake in the parser or the compiler to user malpractice with empty statements.
-THAT OR AN EFFING FORGOTTEN ':' BETWEEN codeGen and disp]])
+POSSIBLY A FORGOTTEN ':' BETWEEN codeGen and disp
+]])
     :format(pt(ast), field)) return self, ast end
     local new_ast = ast[field]
     self.switch[_codeDispPatt:match(field)](new_ast.tag, self, new_ast)
@@ -158,6 +160,18 @@ function Compiler:jmp(jmp, p)
     return p
 end
 
+---expands an assignement, depending on its left hand side's tag.
+---@type fun(lhs_tag : string, state : Compiler, ast : table): Compiler, table
+switch._assign = lpeg.Switch{
+    ---@TODO
+    ---see if you want to keep variables as a disinct lhs from indexed.<br>
+    ---Probably yes, because they can be loaded into a static region of memory and more easily accessed.<br>
+    ---Besides, allocation of custom objects may make things even worse.
+    variable = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
+        state.code:push(state.vars[ast.lhs.var]) end * Cargs(2),
+    indexed = Cargs(2) ,
+}
+
 function Compiler:Xjunction(jmp)
     return Cargs(2) / function (state, ast)
         codeGen.exp(state, ast.exp1)
@@ -173,9 +187,11 @@ end
 ---@TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
 switch.exp = lpeg.Switch{
     number = Cargs(2) * Cc'push' / Compiler.addCode * Cc'val' / Compiler.addCodeField,
-    variable = Cargs(2)* Cc"load" / Compiler.addCode
+    variable = Cargs(2) * Cc"load" / Compiler.addCode
         / zoo.getVariable,
        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
+    indexed = Cargs(2) ,
+    new = Cargs(2) ,
     unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.u) / Compiler.addCode,
     binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.b) / Compiler.addCode,
     conjunction = Compiler:Xjunction'jmp_Z',
@@ -234,9 +250,9 @@ switch.stat = lpeg.Switch{
     end * Cargs(2),
     ["return"] = Cargs(2) * Cc'exp' / codeGen.disp * Cc'ret' / Compiler.addCode,
     print = Cargs(2) * Cc'exp' / codeGen.disp * Cc"print" / Compiler.addCode,
-    assign = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
-        state.code:push(state.vars[ast.id]) end * Cargs(2),
-        --state.code:push(state.vars[ast.id]) end * Cargs(2),
+    assign = Cargs(2) / function (state, ast)
+        switch._assign(ast.lhs.tag, state, ast) --can't use `/ switch._assign` directly because `switch._assign` is actually a table.
+    end,
     seq = Cargs(2) / function (state, ast) ---@param state Compiler
         for _, s in ipairs(ast.stats) do
             state.codeGen:stat(s)

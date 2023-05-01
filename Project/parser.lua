@@ -22,6 +22,8 @@ local Cs = lpeg.Cs
 local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
+local I = lpeg.I
+
 ---@TODO optimisation (eg with constant addition/multiplication etc)
 ---@TODO OOP : use __name and __tostring for custom objects.
 --------------------------------------------------------------------------------
@@ -89,25 +91,25 @@ function MetaNode:__call (t, n, argst1, argst2, ...)
             .. (type(t) == "userdata" and " . You might be using something undefined (_G shenanigans)." or ''))
     end
 end
-Node.empty = {tag = "void"}
+Node.empty = {tag = 'void'}
 function MetaNode:__index(packedTable)
     if packedTable == nil then return Node.empty
-    elseif type(packedTable) ~= "table" then return end
+    elseif type(packedTable) ~= 'table' then return end
 
     self[packedTable] = self(table.unpack(packedTable))
     return self[packedTable]
 end
 function Node.isEmpty(self)
-    return self == nil or self.tag == "void"
+    return self == nil or self.tag == 'void'
 end
 
-local nodeNum = Node{tag = "number", "val"}
+local nodeNum = Node{tag = 'number', 'val'}
 
-local nodeBinop = Node{tag = "binop", "exp1", "op", "exp2"}
+local nodeBinop = Node{tag = 'binop', 'exp1', 'op', 'exp2'}
 ---@TODO see whether isNodeEmpty is really necssary/helpful there.
-local nodeFoldBinop = Node(Node.isEmpty, 2, {1}, {2, {tag = "binop", "exp1"}})
-local nodeFoldBinopSuffix = Node{tag = "binopSuffix", "op", "exp2"}
-local nodeUnaryop = Node{tag = "unaryop", "op", "exp"}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
+local nodeFoldBinop = Node(Node.isEmpty, 2, {1}, {2, {tag = 'binop', 'exp1'}})
+local nodeFoldBinopSuffix = Node{tag = 'binopSuffix', 'op', 'exp2'}
+local nodeUnaryop = Node{tag = 'unaryop', 'op', 'exp'}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
 
 --------------------------------------------------------------------------------
 --elementary patterns
@@ -173,6 +175,7 @@ local alpha = locale.alpha
 --local alnum = alpha+digit
 local alnum = locale.alnum
 
+---@TODO alleviate the need for reserved words (stil have special words)
 local Rw_ = setmetatable({
     "return",
     "if",
@@ -180,6 +183,7 @@ local Rw_ = setmetatable({
     "therefore",
     "goto",
     "while",
+    "new"
 },{__call = function(self, word)
     return self[word]
 end,
@@ -225,11 +229,20 @@ end
 --------------------------------------------------------------------------------
 --expressions and statements
 
+--for assignements :
+--local lhs = V'lhs'
+--local rhs = V'rhs'
+
+---@TODO make a function for parenthese, that maybe also checks for extra closing ones ?
+local ref_ = var * V'ws_' * T_"[" * V'exp_' * (T_"]" + err"primary: missing closing bracket") / Node{tag = 'indexed', 'exp_ref', 'exp_index'}
++ var * V'ws_'
+
 ---@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority
-local exp_ = Stack{'exp',
+local exp_ = Stack{'exp_',
     ws_ = ws_,
-    (numeral + var) * V'ws_' + T_"(" * V'exp' * (T_")" + err"primary: missing parentheses"), --primary
+    ref_ = ref_,
+    numeral * I"bla" * V'ws_' + ref_ + T_"(" * V'exp_' * (T_")" + err"primary: missing closing parentheses"), --primary
 }
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
@@ -241,13 +254,12 @@ exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
 exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
 exp_:push(infixOpCaptureRightAssoc(C"||" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
 
-exp_.exp = V(#exp_)
+---@TODO remove useless keyword or switch to manual memory management
+exp_:push(V(#exp_) + Rw_"new" * T_"[" * V'exp_' * (T_"]" + err"primary: missing closing bracket") / Node{tag = 'new', 'exp_size'})
+
+exp_.exp_ = V(#exp_)
 --setmetatable(exp_, nil)
 exp_ = P(exp_)
-
---for assignements :
-local lhs = V'lhs'
-local rhs = V'rhs'
 
 ---@TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 ---@TODO : replace if with therefore. (after switching all statements to expressions). "therefore" is like "and" but with different prio yields the last truthy expression rather than the first falsy.
@@ -256,8 +268,11 @@ local rhs = V'rhs'
 local stats_ = {'stats',
     ws_ = ws_,
     exp_ = exp_,
+    ref_ = ref_,
+    lhs_ = V'ref_',
     stat = (V'block'
-        + ID * V'ws_' * T_"=" * V'exp_' / Node{tag = "assign", "id", "exp"}
+    ---@TODO put more sutff into lhs, such as `(a=b) = c` (meaning `a=b; a=c`) and `a < b = c` (meaning `if (a < b) {a = c} a` ). add !a = b and !!a = b ?
+        + V'lhs_' * T_"=" * V'exp_' / Node{tag = "assign", "lhs", "exp"}
         ---@TODO : implement a ternary operator instead
         ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
         ---where (therefore|otherwise) is right associative.

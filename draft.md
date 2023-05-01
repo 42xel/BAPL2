@@ -103,7 +103,7 @@ _DEBUG?£optionaltrace
 $4:100 : promise but only gets updated at depth 4 number 100
 
 a = ££nil | a = €nil : weak ref of sort
-(a = file.open("bla.txt")) = €nil : opens a file to be close by the next cycle. (alternative to with).
+(a = file.open("name.txt")) = €nil : opens a file to be close by the next cycle. (alternative to with).
 
 
 £return €return $return : non stopping (asynchronous) return prompting the corresponding value/promise to be returned at the end of the function

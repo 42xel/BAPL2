@@ -1,2 +1,0 @@
-error in <input>:1:1	file: syntax error.
-error in <input>:1:1	file: syntax error.

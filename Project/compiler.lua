@@ -107,7 +107,7 @@ end
 function zoo:getVariable(ast)
     -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
 ---@diagnostic disable-next-line: redundant-parameter
-        return Compiler.addCode(self, ast, assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s"):format(ast.var, #self.code)), nil)
+        return Compiler.addCode(self, ast, assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast))), nil)
 end
 local _invalidAst = Cargs(2) / zoo.invalidAst
 
@@ -169,7 +169,22 @@ switch._assign = lpeg.Switch{
     ---Besides, allocation of custom objects may make things even worse.
     variable = Cargs(2) * Cc'exp' / codeGen.disp * Cc'store' / Compiler.addCode / function(state, ast)
         state.code:push(state.vars[ast.lhs.var]) end * Cargs(2),
-    indexed = Cargs(2) ,
+    --[[
+    I feel it's important to compile the lhs before the expression to assign.
+    I'm pretty sure JS and C++ have different stances on it (don't remember which, and they did not always have one), which can been tested by putting border effects.
+    The reasons behind my choice are as follows :
+
+- It follows reading order.
+- Depending on the lhs, I might want to treat the expression value differently (no big deal) or not at all.
+For example ̀`[3,4,0,5,9]` may not mean the same physically whether it's a bool, short int, int, or double array, and as such, might not be translated the same in opCode.
+    ]]
+    indexed = Cargs(2) / function (state, ast)
+        ---@TODO For much later : think about binding or trick like lua's obj:method, and how to make sort of currification, so that it's not just for the last field.
+        codeGen:disp(ast.lhs, 'exp_ref') ---@TODO thinkabout fields, arrays of arrays...
+        codeGen:disp(ast.lhs, 'exp_index')
+        codeGen:disp(ast, 'exp')
+        return state:addCode(ast, 'set')
+    end
 }
 
 function Compiler:Xjunction(jmp)
@@ -190,8 +205,8 @@ switch.exp = lpeg.Switch{
     variable = Cargs(2) * Cc"load" / Compiler.addCode
         / zoo.getVariable,
        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
-    indexed = Cargs(2) ,
-    new = Cargs(2) ,
+    indexed = Cargs(2) * Cc'exp_ref' / codeGen.disp * Cc'exp_index' / codeGen.disp * Cc'get' / Compiler.addCode,
+    new = Cargs(2) * Cc'exp_size' / codeGen.disp * Cc'new' / Compiler.addCode, ---only returns a ref to the array, does not not assign it.
     unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.u) / Compiler.addCode,
     binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.b) / Compiler.addCode,
     conjunction = Compiler:Xjunction'jmp_Z',

@@ -2,6 +2,7 @@
 
 local pt = require"pt".pt
 local lpeg = require "lpeg"
+local Object = require "Object"
 local Stack = require"Stack"
 require "utils"
 
@@ -27,7 +28,7 @@ local Cmt = lpeg.Cmt
 --------------------------------------------------------------------------------
 
 local function checkIndexRange(a, i)
-    assert(i>0 and i <= a.size, ("Array index out of range. Array : %s of size %s, trying index %s"):format(a, a.size, i))
+    assert(i>0 and i <= #a, ("Array index out of range. Array : %s of size %s, trying index %s"):format(a, a.size, i))
 end
 local function concat(sep, ...)
     return table.concat(table.move({...}, 1, select('#', ...), 1,
@@ -35,6 +36,46 @@ local function concat(sep, ...)
             rawset(self, k, pt(v):gsub('\n', ' '))
         end})), sep)
 end
+
+local Array = {__name = 'Array'}
+do  --localising ArraySizes
+    local ArraySizes = setmetatable({}, {__weak='k'})   ---we're only storing information around arrays here, we don't want to keep them alive.
+    function Array:new (size)
+        assert(type(size) == 'number')
+        local r = setmetatable({size = size or 0}, self)
+        ArraySizes[r] = size
+        return r
+    end
+    function Array:__len ()
+        return ArraySizes[self]
+    end
+end
+function Array:__index(k)   --we won't do any inheritance with Array, so we don't need to put self.__index ) self in Array.new
+    assert(type(k) == 'number')
+    return '_'
+end
+do  --localising depth
+    local depth = 0
+    function Array:__tostring()
+        local r = "\n" .. string.rep("\t", depth) .. "[ " --making room before
+        depth = depth + 1
+
+        local ts = {}
+        local d = depth
+        for i = 1, #self do
+            table.insert(ts, tostring(self[i]))
+        end
+        assert(d == depth)
+        r = r .. table.concat(ts, ", ")
+        depth = depth - 1
+        r = r .. " ]" .."\n" .. string.rep("\t", depth) --making room after
+
+        return r:gsub("%]\n(\t*), \n(\t*)%[", "], \n%1[") --removing double line break from consecutive arrays
+                :gsub("%]\n(\t*), ","],\n%1")   --putting commas at the end of lines rather than the beginning
+                :gsub("\n\t(\t*) %]", "\n%1]")  --aligning lone closing brackets with their partner.
+    end
+end
+setmetatable(Array, {__call = Array.new})
 
 ---@param code Stack
 ---@param mem? table
@@ -124,7 +165,7 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         ---for now, arrays are simply lua tables
         ---@TODO ponder a while when reimplementing the vm in a lower level language as a registr machine
         ---@TODO ponder 0 or 1 index
-        new = P'' * pop / function (size) return {size = size} end / push,
+        new = P'' * pop / function (size) return Array(size) end / push,
         set = Cmt(Cc(3), pop) / function (a, i, v) checkIndexRange(a, i); a[i] = v end,
         get = Cmt(Cc(2), pop) / function (a, i) checkIndexRange(a, i); return assert(a[i], ("No value for table %s at index %s"):format(a, i)) end / 1 / push,    ---@TODO think of default value. is it nil, is it garbage ? do we keep it as an error ?
         [lpeg.Switch.default] = C"unknown instruction:\t" / function (err)

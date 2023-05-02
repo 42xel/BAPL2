@@ -1,4 +1,5 @@
 ---@TODO : rewrite as a register machine in C++, Kotlin or Rust. Main factor for choice : memory allocation : Java : already has a GC.
+---the compiler doesn't need to be writtent in Rust, but I will need to be rewritten, as the instructions set will change upon transitionning to a register machine.
 ---@TODO use enums to help lua-language-server helping me being consistent accross parser, compiler and interpreter
 
 local pt = require "pt".pt
@@ -196,6 +197,7 @@ function Compiler:Xjunction(jmp)
         pEnd:honor(#state.code)
     end * Cargs(2)
 end
+
 --Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
 --Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf variable)
 --obfuscating ? 
@@ -206,7 +208,26 @@ switch.exp = lpeg.Switch{
         / zoo.getVariable,
        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
     indexed = Cargs(2) * Cc'exp_ref' / codeGen.disp * Cc'exp_index' / codeGen.disp * Cc'get' / Compiler.addCode,
-    new = Cargs(2) * Cc'exp_size' / codeGen.disp * Cc'new' / Compiler.addCode, ---only returns a ref to the array, does not not assign it.
+    new = Cargs(2) / function (state, ast)
+        codeGen:disp(ast, 'exp_size')
+        state.code:push'c_new'
+        if ast.exp_default then
+            local pStart = Promise:honored(#state.code)
+            codeGen:disp(ast, 'exp_default')
+            state.code:push'c_set'
+            state.code:push'push'
+            state.code:push(1)
+            state.code:push'sub'
+            state:jmp('jmp_NZ', pStart)
+            state.code:push'pop'
+        elseif ast.init then
+            state.code:push'init'
+            table.move(ast.init, 1, #ast.init, #state.code, state.code)
+        else
+            state.code:push'pop'
+        end
+    end,
+    Array = Cargs(2) * Cc'exp_size' / codeGen.disp * Cc'new' / Compiler.addCode, ---only returns a ref to the array, does not not assign it.
     unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.u) / Compiler.addCode,
     binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.b) / Compiler.addCode,
     conjunction = Compiler:Xjunction'jmp_Z',

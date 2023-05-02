@@ -23,6 +23,7 @@ local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
 local I = lpeg.I
+local Cfr = lpeg.Cfr
 
 ---@TODO optimisation (eg with constant addition/multiplication etc)
 ---@TODO OOP : use __name and __tostring for custom objects.
@@ -138,10 +139,10 @@ local ws_ = ws^0
 local function T_(token)
     return token * ws_
 end
---set token generator
-local function Ts_(tokens)
-    return S(tokens) * ws_
-end
+----set token generator
+--local function Ts_(tokens)
+--    return S(tokens) * ws_
+--end
 
 ---@TODO make msg an object ??
 ---@TODO use a patt argument for nested/chained errors ??
@@ -183,7 +184,8 @@ local Rw_ = setmetatable({
     "therefore",
     "goto",
     "while",
-    "new"
+    "new",
+    "Array",    ---@TODO (after function and OO) : alternative way to declare Arrays, to eventually replace `new` keyword
 },{__call = function(self, word)
     return self[word]
 end,
@@ -233,17 +235,34 @@ end
 --local lhs = V'lhs'
 --local rhs = V'rhs'
 
+local function paren_(op, patt, cl, name)
+    return T_(op) * patt * (T_(cl) + err("primary: missing closing " .. name .. "."))
+end
+local brackExp_ = paren_("[", V'exp_',"]", "bracket")
+local parenExp_ = paren_("(", V'exp_',")", "parentheses")
 ---@TODO make a function for parenthese, that maybe also checks for extra closing ones ?
-local ref_ = var * V'ws_' * T_"[" * V'exp_' * (T_"]" + err"primary: missing closing bracket") / Node{tag = 'indexed', 'exp_ref', 'exp_index'}
-+ var * V'ws_'
+local ref_ = Cf(var * V'ws_' * brackExp_^0, Node{tag = 'indexed', 'exp_ref', 'exp_index'})
 
 ---@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority
 local exp_ = Stack{'exp_',
     ws_ = ws_,
     ref_ = ref_,
-    numeral * I"bla" * V'ws_' + ref_ + T_"(" * V'exp_' * (T_")" + err"primary: missing closing parentheses"), --primary
+    numeral * V'ws_' + ref_ + parenExp_, --primary
 }
+
+---@TODO remove useless keyword or switch to manual memory management
+--exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
+--- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
+---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
+exp_:push(V(#exp_)
+    + Cfr(Rw_"new" * brackExp_^1 * (T_"=" * V'exp_' + Cc(nil)),
+    Node{tag='new', 'exp_size', 'exp_default'})
+)
+---litteral form
+--exp_:push(V(#exp_) + T_"[" * V'exp_' * (T_"," * V'exp_')^0 * (T_"]" + err"primary: missing closing bracket") / Node{tag = 'Array', [0] = 'values'})
+---@TODO use `new = exp` to initialize an array (so `var = new = exp` to store it in a var)
+
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
 exp_:push(infixOpCapture(C(S"*/%") * V'ws_', V(#exp_))) --multiplication
@@ -254,16 +273,12 @@ exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
 exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
 exp_:push(infixOpCaptureRightAssoc(C"||" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
 
----@TODO remove useless keyword or switch to manual memory management
-exp_:push(V(#exp_) + Rw_"new" * T_"[" * V'exp_' * (T_"]" + err"primary: missing closing bracket") / Node{tag = 'new', 'exp_size'})
-
 exp_.exp_ = V(#exp_)
 --setmetatable(exp_, nil)
 exp_ = P(exp_)
 
 ---@TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 ---@TODO : replace if with therefore. (after switching all statements to expressions). "therefore" is like "and" but with different prio yields the last truthy expression rather than the first falsy.
----@TODO : else is
 ---@TODO  => is the purely logical, right associative, `imply` and is enough 
 local stats_ = {'stats',
     ws_ = ws_,
@@ -283,14 +298,14 @@ local stats_ = {'stats',
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* ; 
-        ---@TODO ponder whether you want to od things like exp * ws^1 * exp, and give it a lower priority than that I guess
+        ---@TODO ponder whether you want to do things like exp * ws^1 * exp, and give it a lower priority than that I guess
         + Rw_"if" * V'exp_' * V"stat" * (Rw_"else" * V"stat")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
         + Rw_"while" * V'exp_' * V"stat" / Node{tag = "while", "exp_cond", "stat"}
         + T_"@" * V'exp_' / Node{tag = "print", "exp"}
         + Rw_"return" * V'exp_' / Node{tag = "return", "exp"}
         ) * T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    stats = Cc'seq' * V'stat'^0 / Node(Node.isEmpty, 3, {Node.isEmpty, 2, {Node.empty}, {2}}, {{"tag", [0] = "stats"}}),  -- no constant tag to escape the annoying full pattern returned when no capture occurs
+    stats = Cc'seq' * V'stat'^0 / Node(Node.isEmpty, 3, {Node.isEmpty, 2, {Node.empty}, {2}}, {{"tag", [0] = "stats"}}),  -- no constant tag to escape the annoying full match being returned when no capture occurs
     block = T_"{" * V'stats' * (T_"}" + err"block: missing brace"),
 }
 stats_ = P(stats_)

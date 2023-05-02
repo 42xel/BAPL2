@@ -51,6 +51,20 @@ function lpeg.Cpy(target, source)
     return lpeg.Cg(lpeg.Cb(source or '_'), target)
 end
 
+--Usually, left folding is more useful because right associative folding comes for free in a way that can't be reproduced left associatively without causing a left recursive pattern
+--However, it's not enough for folding a sequence of captures coming ffrom a non recursive pattern (eg. one with a suffix capture).
+---lpeg Fold capture right associative
+function lpeg.Cfr (patt ,f)
+    local function aux(...)
+        if 1 < select('#', ...) then
+            return f(..., aux(select(2, ...)))
+        else
+            return ...
+        end
+    end
+    return patt / aux
+end
+
 --------------------------------------------------------------------------------
 --lpeg switch
 

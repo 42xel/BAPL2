@@ -28,12 +28,14 @@ local Cmt = lpeg.Cmt
 --------------------------------------------------------------------------------
 
 local function checkIndexRange(a, i)
+    assert(type(a) == 'table', ("Trying to index something other than a table:\t%s index:\t%s"):format(a, i))
     assert(i>0 and i <= #a, ("Array index out of range. Array : %s of size %s, trying index %s"):format(a, a.size, i))
 end
+---@TODO on the lua discussion boards, see why concat doesn't use tostring and __tostring and argue/code in favor of it.
 local function concat(sep, ...)
     return table.concat(table.move({...}, 1, select('#', ...), 1,
         setmetatable({}, {__newindex = function (self, k, v)
-            rawset(self, k, pt(v):gsub('\n', ' '))
+            rawset(self, k, tostring(v):gsub('[\n\t]', ' '))
         end})), sep)
 end
 
@@ -88,7 +90,8 @@ local function run(code, mem, stack)
     local function push(...)
         --shouldn't happen, if it does, it most likely is an error in the compiler
         if type(...) ~= 'number' and type(...) ~= 'table' then error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)) ) end ---@TODO : make it only number/pointers when rewriting the VM.
-        trace:push('<- ' .. concat(', ', ...))
+        trace:push('<- ' .. concat(', ',...))
+        --trace:push(pt(stack):gsub('[\n\t]', ' ') .. '')
         stack:push(...)
     end
     local function pop(_, _, n, ...) n = tonumber(n)   --no capture => captures whole match, here ''. so let us tranform it back to nil.
@@ -98,6 +101,7 @@ At opCode line %s
 Trying to pop %s values
 from stack %s]]):format(tonumber(pc), n, pt(stack)))
         trace:push('-> ' .. concat(', ', stack:unpack(#stack - n + 1)))
+        --trace:push(pt(stack):gsub('[\n\t]', ' ') .. '')
         return true, stack:pop(n)
     end
     local function peek()
@@ -165,13 +169,14 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         ---for now, arrays are simply lua tables
         ---@TODO ponder a while when reimplementing the vm in a lower level language as a registr machine
         ---@TODO ponder 0 or 1 index
-        new = P'' * pop / function (size) return Array(size) end / push,
+        c_new = P'' * pop / function (size) return Array(size), size end / push,
         set = Cmt(Cc(3), pop) / function (a, i, v) checkIndexRange(a, i); a[i] = v end,
-        get = Cmt(Cc(2), pop) / function (a, i) checkIndexRange(a, i); return assert(a[i], ("No value for table %s at index %s"):format(a, i)) end / 1 / push,    ---@TODO think of default value. is it nil, is it garbage ? do we keep it as an error ?
-        [lpeg.Switch.default] = C"unknown instruction:\t" / function (err)
+        c_set = Cmt(Cc(3), pop) / function (a, i, v) checkIndexRange(a, i); a[i] = v return a, i end / push,
+        get = Cmt(Cc(2), pop) / function (a, i) checkIndexRange(a, i); return assert(rawget(a, i), ("No value for table %s at index %s"):format(a, i)) end / 1 / push,    ---@TODO think of default value. is it nil, is it garbage ? do we keep it as an error ?
+        [lpeg.Switch.default] = Cc"unknown instruction:\t" / function (err)
             print(trace:unpack())
             --should not be happening, if it does, there most likely is an error in the compiler.
-            error("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc))
+            error(err .. code[pc] .. " at line:\t" .. tostring(pc))
         end
     }
     repeat

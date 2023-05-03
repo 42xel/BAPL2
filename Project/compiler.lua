@@ -12,6 +12,8 @@ local Symbol = require"Symbol"
 local utils = require "utils"
 local Promise = require "Promise"
 
+local parse = require "parser"
+
 local P = lpeg.P
 local S = lpeg.S
 local R = lpeg.R
@@ -198,6 +200,52 @@ function Compiler:Xjunction(jmp)
     end * Cargs(2)
 end
 
+function Compiler:newArray (ast)
+    if ast.exp_size then    --defined using size
+        codeGen:disp(ast, 'exp_size')
+        self.code:push'c_new'
+        if ast.exp_default then
+            --testing whether the size is an integer
+            self.code:push'peek'
+            self.code:push'push'
+            self.code:push(1)
+            self.code:push'mod'
+            local pInt = self:jmp('jmpop_Z')
+            self.code:push'error_array_size'
+            --testing whether size >= 0
+            pInt:honor(#self.code)
+            self.code:push'peek'
+            self.code:push'push'
+            self.code:push(0)
+            self.code:push'gt'
+            local pEnd = self:jmp('jmpop_Z')
+
+            --main loop
+            local pLoop = Promise:honored(#self.code)
+            codeGen:disp(ast, 'exp_default')
+            self.code:push'c_set'
+            self.code:push'push'
+            self.code:push(1)
+            self.code:push'sub'
+            self:jmp('jmp_NZ', pLoop)
+            pEnd:honor(#self.code)
+        end
+        self.code:push'pop'    --popping the index at the end of the loop, to leave the array at the top of the stack
+    else    --defined with a literral
+        self.code:push'push'
+        self.code:push(#ast.values)
+        self.code:push'new'
+        for i = 1, #ast.values do
+            self.code:push'push'
+            self.code:push(i)
+            codeGen:exp(ast.values[i])
+            self.code:push'c_set'   --to keep the array
+            self.code:push'pop'     --to get rid of the index
+        end
+    end
+    return self, ast
+end
+
 --Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
 --Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf variable)
 --obfuscating ? 
@@ -208,25 +256,9 @@ switch.exp = lpeg.Switch{
         / zoo.getVariable,
        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
     indexed = Cargs(2) * Cc'exp_ref' / codeGen.disp * Cc'exp_index' / codeGen.disp * Cc'get' / Compiler.addCode,
-    new = Cargs(2) / function (state, ast)
-        codeGen:disp(ast, 'exp_size')
-        state.code:push'c_new'
-        if ast.exp_default then
-            local pStart = Promise:honored(#state.code)
-            codeGen:disp(ast, 'exp_default')
-            state.code:push'c_set'
-            state.code:push'push'
-            state.code:push(1)
-            state.code:push'sub'
-            state:jmp('jmp_NZ', pStart)
-            state.code:push'pop'
-        elseif ast.init then
-            state.code:push'init'
-            table.move(ast.init, 1, #ast.init, #state.code, state.code)
-        else
-            state.code:push'pop'
-        end
-    end,
+    ---@TODO depending on how floats are treated, revisit.
+    --I should be able to write it higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
+    new = Cargs(2) / Compiler.newArray,
     Array = Cargs(2) * Cc'exp_size' / codeGen.disp * Cc'new' / Compiler.addCode, ---only returns a ref to the array, does not not assign it.
     unaryop = Cargs(2) * Cc'exp' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.u) / Compiler.addCode,
     binop = Cargs(2) * Cc'exp1' / codeGen.disp * Cc'exp2' / codeGen.disp * (Carg(2) * Cc'op' / get / Compiler.codeOP.b) / Compiler.addCode,

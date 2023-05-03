@@ -123,6 +123,7 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         --basic
         push = P'' * inc * line / push,
         pop = P'' * pop / 0,
+        peek = P'' * peek / push,
         load = Cc(mem) * inc * line / get / push,
         store = Cc(mem) * inc * line * pop / set,
         print = Cc'@' * pop / print,
@@ -169,6 +170,7 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         ---for now, arrays are simply lua tables
         ---@TODO ponder a while when reimplementing the vm in a lower level language as a registr machine
         ---@TODO ponder 0 or 1 index
+        new = P'' * pop / function (size) return Array(size) end / push,
         c_new = P'' * pop / function (size) return Array(size), size end / push,
         set = Cmt(Cc(3), pop) / function (a, i, v) checkIndexRange(a, i); a[i] = v end,
         c_set = Cmt(Cc(3), pop) / function (a, i, v) checkIndexRange(a, i); a[i] = v return a, i end / push,
@@ -176,7 +178,9 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         [lpeg.Switch.default] = Cc"unknown instruction:\t" / function (err)
             print(trace:unpack())
             --should not be happening, if it does, there most likely is an error in the compiler.
-            error(err .. code[pc] .. " at line:\t" .. tostring(pc))
+            ---@TODO output in stderr. for now I use stdout for readibility, because apparently I have no control on how stdout and stderr will mix on the terminal output.
+            io.stdout:write(err .. code[pc] .. " at line:\t" .. tostring(pc) .. "\n")   --lpeg match catches errors I think
+            os.exit(false)
         end
     }
     repeat

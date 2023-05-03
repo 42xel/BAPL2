@@ -1,3 +1,6 @@
+---@TODO vague floating idea : make code from AST. Put comments/annotations in AST
+---enables pretty print, automatic documentation, helps introspection, debugging, reflexivity.
+---helps changing syntax.
 local pt = require "pt".pt
 local lpeg = require "lpeg"
 
@@ -235,20 +238,29 @@ end
 --local lhs = V'lhs'
 --local rhs = V'rhs'
 
-local function paren_(op, patt, cl, name)
-    return T_(op) * patt * (T_(cl) + err("primary: missing closing " .. name .. "."))
+local _parenNames = {
+    ["("] = "parentheses",
+    ["["] = "bracket",
+    ["{"] = "brace",
+}
+local function paren_ (op, patt, cl, pattName, bname)
+    bname = bname or _parenNames[op]
+    return T_(op) * patt * (T_(cl) + err(pattName .. ": missing closing " .. bname .. "."))
 end
-local brackExp_ = paren_("[", V'exp_',"]", "bracket")
-local parenExp_ = paren_("(", V'exp_',")", "parentheses")
+local _parenNames
+
+
+local brackExp_ = paren_("[", V'exp_',"]", "expression")
+local parenExp_ = paren_("(", V'exp_',")", "expression")
 ---@TODO make a function for parenthese, that maybe also checks for extra closing ones ?
-local ref_ = Cf(var * V'ws_' * brackExp_^0, Node{tag = 'indexed', 'exp_ref', 'exp_index'})
+local ref_ = Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{tag = 'indexed', 'exp_ref', 'exp_index'})
 
 ---@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority
 local exp_ = Stack{'exp_',
     ws_ = ws_,
     ref_ = ref_,
-    numeral * V'ws_' + ref_ + parenExp_, --primary
+    numeral * V'ws_' + ref_ + paren_("(", V'exp_',")", "primary"), --primary
 }
 
 ---@TODO remove useless keyword or switch to manual memory management
@@ -256,12 +268,12 @@ local exp_ = Stack{'exp_',
 --- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
 ---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
 exp_:push(V(#exp_)
-    + Cfr(Rw_"new" * brackExp_^1 * (T_"=" * V'exp_' + Cc(nil)),
+    + Cfr(Rw_"new" * paren_("[", V'exp_',"]", "new Array", "bracket")^1 * (T_"=" * V'exp_' + Cc(nil)),
     Node{tag='new', 'exp_size', 'exp_default'})
 )
 ---litteral form
---exp_:push(V(#exp_) + T_"[" * V'exp_' * (T_"," * V'exp_')^0 * (T_"]" + err"primary: missing closing bracket") / Node{tag = 'Array', [0] = 'values'})
----@TODO use `new = exp` to initialize an array (so `var = new = exp` to store it in a var)
+exp_:push(V(#exp_) + paren_("{", V'exp_' * (T_"," * V'exp_')^0 + Cc(nil), "}", "litteral Array")
+    / Node{tag = 'new', [0] = 'values'})
 
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-

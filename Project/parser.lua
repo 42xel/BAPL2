@@ -8,6 +8,7 @@ local Object = require"Object"
 local Stack = require"Stack"
 require "utils"
 
+--TODO : use _ENV to put in a module. to call, for example, _ENV = require "require"
 local P = lpeg.P
 local S = lpeg.S
 local R = lpeg.R
@@ -26,10 +27,13 @@ local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
 local I = lpeg.I
+---lpeg Fold capture right associative
 local Cfr = lpeg.Cfr
 
 ---@TODO optimisation (eg with constant addition/multiplication etc)
 ---@TODO OOP : use __name and __tostring for custom objects.
+--------------------------------------------------------------------------------
+---@alias AST table
 --------------------------------------------------------------------------------
 
 local MetaNode = Object{__name = "MetaNode"}
@@ -97,8 +101,8 @@ function MetaNode:__call (t, n, argst1, argst2, ...)
 end
 Node.empty = {tag = 'void'}
 function MetaNode:__index(packedTable)
-    if packedTable == nil then return Node.empty
-    elseif type(packedTable) ~= 'table' then return end
+    if packedTable == nil then return print("packedTable nil") and Node.empty
+    elseif type(packedTable) ~= 'table' then return print("packedTable not table") end
 
     self[packedTable] = self(table.unpack(packedTable))
     return self[packedTable]
@@ -117,6 +121,22 @@ local nodeUnaryop = Node{tag = 'unaryop', 'op', 'exp'}    --local nodeUnaryop = 
 
 --------------------------------------------------------------------------------
 --elementary patterns
+
+---@TODO make msg an object ??
+---@TODO use a patt argument for nested/chained errors ??
+local function err(msg)
+    return --Cmt('', 
+        function (subject, p, ...)
+            local lineStart = 1
+            local _, lineNumber = subject:sub(1, p):gsub("()\n", function (pos) lineStart = pos end)
+            io.stderr:write(string.format("error in <input>:%d:%d\t", lineNumber + 1, p - lineStart + 1))    --TODO use filename
+            io.stderr:write(msg .. '\n')
+            os.exit()
+            return false, msg
+        end
+    --)
+end
+
 
 local locale = lpeg.locale()
 --local function inc(x)
@@ -147,18 +167,9 @@ end
 --    return S(tokens) * ws_
 --end
 
----@TODO make msg an object ??
----@TODO use a patt argument for nested/chained errors ??
-local function err(msg)
-    return Cmt('', function (subject, p)
-        local lineStart = 1
-        local _, lineNumber = subject:sub(1, p):gsub("()\n", function (pos) lineStart = pos end)
-            io.stderr:write(string.format("error in <input>:%d:%d\t", lineNumber + 1, p - lineStart + 1))    --TODO use filename
-            io.stderr:write(msg .. '\n')
-            os.exit()
-    end)
+local function numeralCapture(digit, comma)
+    return (digit^1 + digit^0 * comma * digit^1) -- ((comma+"")*-(digit+comma))
 end
-
 local comma = S'.'
 
 --local digit = R'09'
@@ -167,12 +178,18 @@ local digits = digit^0
 --local xdigit = R('09', 'af', 'AF')
 local xdigit = locale.xdigit
 local xdigits = xdigit^0
----@TODO if no other pattern starts with a digit, or if numeral is the last choice among them, loosen this pattern and raise a more informative error
-local function numeralCapture(digit, comma)
-    return (digit^0 * (comma * digit^0)^-1) - ((comma+'')*-(digit+comma))
-end
+---@TODO if no other pattern starts with a digit, or depending on the ordering of the choice, loosen this pattern and raise a more informative error
 --I might want to have coding numeral stuck to variable identifiers or very special operators, so no spaces at the end.
-local numeral = ('0' * S'xX' * numeralCapture(xdigit, comma) + numeralCapture(digit, comma) * (S'eE' * digit^1)^-1) / tonumber / nodeNum
+local numeral = Cmt(('0' * S'xX' * numeralCapture(xdigit, comma) + numeralCapture(digit, comma) * (S'eE' * digit^1)^-1),
+    function (subject, position, n)
+        n = tonumber(n)
+        if n then
+            return true, n
+        else
+            return err"malformed numeral"(subject, position)
+        end
+    end)
+    / nodeNum
 
 local alpha = locale.alpha
 --local alpha = R('az', 'AZ')
@@ -247,7 +264,11 @@ local function paren_ (op, patt, cl, pattName, bname)
     bname = bname or _parenNames[op]
     return T_(op) * patt * (T_(cl) + err(pattName .. ": missing closing " .. bname .. "."))
 end
-local _parenNames
+local _parenNames = {
+    ["("] = "parentheses",
+    ["["] = "brackets",
+    ["{"] = "braces",
+}
 
 
 local brackExp_ = paren_("[", V'exp_',"]", "expression")
@@ -260,20 +281,20 @@ local ref_ = Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{t
 local exp_ = Stack{'exp_',
     ws_ = ws_,
     ref_ = ref_,
+    lhs_ = V'ref_',
     numeral * V'ws_' + ref_ + paren_("(", V'exp_',")", "primary"), --primary
 }
 
+--array creation
 ---@TODO remove useless keyword or switch to manual memory management
 --exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
 --- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
 ---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
-exp_:push(V(#exp_)
-    + Cfr(Rw_"new" * paren_("[", V'exp_',"]", "new Array", "bracket")^1 * (T_"=" * V'exp_' + Cc(nil)),
-    Node{tag='new', 'exp_size', 'exp_default'})
-)
+exp_:push(Cfr(Rw_"new" * paren_("[", V'exp_',"]", "new Array", "bracket")^1 * (T_"=" * V'exp_' + Cc(nil)),
+    Node{tag='new', 'exp_size', 'exp_default'}) + V(#exp_))
 ---litteral form
-exp_:push(V(#exp_) + paren_("{", V'exp_' * (T_"," * V'exp_')^0 + Cc(nil), "}", "litteral Array")
-    / Node{tag = 'new', [0] = 'values'})
+exp_:push(paren_("{", V'exp_' * (T_"," * V'exp_')^0 + Cc(nil), "}", "litteral Array")
+    / Node{tag = 'new', [0] = 'values'} + V(#exp_))
 
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
@@ -284,6 +305,10 @@ exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * V'ws_', V(#exp_),
 exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
 exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
 exp_:push(infixOpCaptureRightAssoc(C"||" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
+--BEWARE : + V(#exp_) must be at the end
+---assignement
+exp_:push(V'lhs_' * T_"=" * V'exp_' / Node{tag = "assign", "lhs", "exp"}
+    + V(#exp_))
 
 exp_.exp_ = V(#exp_)
 --setmetatable(exp_, nil)
@@ -297,9 +322,9 @@ local stats_ = {'stats',
     exp_ = exp_,
     ref_ = ref_,
     lhs_ = V'ref_',
-    stat = (V'block'
+    stat_ = (V'block'
     ---@TODO put more sutff into lhs, such as `(a=b) = c` (meaning `a=b; a=c`) and `a < b = c` (meaning `if (a < b) {a = c} a` ). add !a = b and !!a = b ?
-        + V'lhs_' * T_"=" * V'exp_' / Node{tag = "assign", "lhs", "exp"}
+--        + V'lhs_' * T_"=" * V'exp_' / Node{tag = "stat_assign", "lhs", "exp"}
         ---@TODO : implement a ternary operator instead
         ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
         ---where (therefore|otherwise) is right associative.
@@ -311,23 +336,26 @@ local stats_ = {'stats',
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* ; 
         ---@TODO ponder whether you want to do things like exp * ws^1 * exp, and give it a lower priority than that I guess
-        + Rw_"if" * V'exp_' * V"stat" * (Rw_"else" * V"stat")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
-        + Rw_"while" * V'exp_' * V"stat" / Node{tag = "while", "exp_cond", "stat"}
+        + Rw_"if" * V'exp_' * V"stat_" * (Rw_"else" * V"stat_")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
+        + Rw_"while" * V'exp_' * V"stat_" / Node{tag = "while", "exp_cond", "stat_"}
         + T_"@" * V'exp_' / Node{tag = "print", "exp"}
-        + Rw_"return" * V'exp_' / Node{tag = "return", "exp"}
+        + Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = "return", "exp"}
+        + V'exp_'
         ) * T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    stats = Cc'seq' * V'stat'^0 / Node(Node.isEmpty, 3, {Node.isEmpty, 2, {Node.empty}, {2}}, {{"tag", [0] = "stats"}}),  -- no constant tag to escape the annoying full match being returned when no capture occurs
+    stats =  (V'stat_')^0 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = "seq", [0] = 'stats'}}),  -- Cc(nil) to escape the pesky full match being returned when no capture occurs. Nil is part of the capture but forgottent upon filling the table
     block = T_"{" * V'stats' * (T_"}" + err"block: missing brace"),
 }
 stats_ = P(stats_)
 
 --------------------------------------------------------------------------------
+local successParsing = print
 
 local filePatt =
-    --Cg(Cc(1), "lineCount") * Cg(Cc(1), "lineStart") * 
-    ws_ * stats_
-     * (-1 + err"file: syntax error.") --TODO better error msg
+    ws_ * (stats_ + exp_)
+     * (-P(1) + err"file: syntax error.") --TODO better error msg
+     * (-P(successParsing) / 0)
+---@return AST
 local function parse (input)
     return filePatt:match(input)
 end

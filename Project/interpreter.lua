@@ -4,7 +4,9 @@ local pt = require"pt".pt
 local lpeg = require "lpeg"
 local Object = require "Object"
 local Stack = require"Stack"
+local Array = require "Array"
 require "utils"
+local IntStack = require"IntStack"
 
 local P = lpeg.P
 local S = lpeg.S
@@ -32,80 +34,51 @@ local function checkIndexRange(a, i)
     assert(i>0 and i <= #a, ("Array index out of range. Array : %s of size %s, trying index %s"):format(a, a.size, i))
 end
 ---@TODO on the lua discussion boards, see why concat doesn't use tostring and __tostring and argue/code in favor of it.
-local function concat(sep, ...)
-    return table.concat(table.move({...}, 1, select('#', ...), 1,
+local function concat(t, sep, i, j)
+    sep = sep or ', '
+    i = i or 1
+    j = j or #t
+    return table.concat(table.move(t, i, j, 1,
         setmetatable({}, {__newindex = function (self, k, v)
             rawset(self, k, tostring(v):gsub('[\n\t]', ' '))
         end})), sep)
 end
 
-local Array = {__name = 'Array'}
-do  --localising ArraySizes
-    local ArraySizes = setmetatable({}, {__weak='k'})   ---we're only storing information around arrays here, we don't want to keep them alive.
-    function Array:new (size)
-        assert(type(size) == 'number')
-        local r = setmetatable({size = size or 0}, self)
-        ArraySizes[r] = size
-        return r
-    end
-    function Array:__len ()
-        return ArraySizes[self]
-    end
-end
-function Array:__index(k)   --we won't do any inheritance with Array, so we don't need to put self.__index ) self in Array.new
-    assert(type(k) == 'number')
-    return '_'
-end
-do  --localising depth
-    local depth = 0
-    function Array:__tostring()
-        local r = "\n" .. string.rep("\t", depth) .. "[ " --making room before
-        depth = depth + 1
-
-        local ts = {}
-        local d = depth
-        for i = 1, #self do
-            table.insert(ts, tostring(self[i]))
-        end
-        assert(d == depth)
-        r = r .. table.concat(ts, ", ")
-        depth = depth - 1
-        r = r .. " ]" .."\n" .. string.rep("\t", depth) --making room after
-
-        return r:gsub("%]\n(\t*), \n(\t*)%[", "], \n%1[") --removing double line break from consecutive arrays
-                :gsub("%]\n(\t*), ","],\n%1")   --putting commas at the end of lines rather than the beginning
-                :gsub("\n\t(\t*) %]", "\n%1]")  --aligning lone closing brackets with their partner.
-    end
-end
-setmetatable(Array, {__call = Array.new})
-
 ---@param code Stack
 ---@param mem? table
----@param stack? Stack
+---@param stack? IntStack
 local function run(code, mem, stack)
-    stack = stack or Stack{}
+    stack = stack or IntStack{}
     mem = mem or {}
     local pc = 0
     local trace = Stack{}
     local function push(...)
         --shouldn't happen, if it does, it most likely is an error in the compiler
         if type(...) ~= 'number' and type(...) ~= 'table' then error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)) ) end ---@TODO : make it only number/pointers when rewriting the VM.
-        trace:push('<- ' .. concat(', ',...))
-        --trace:push(pt(stack):gsub('[\n\t]', ' ') .. '')
+        trace:push('<- ' .. concat({...}))
+        --trace:push(tostring(stack):gsub('[\n\t]', ' '))
         stack:push(...)
     end
-    local function pop(_, _, n, ...) n = tonumber(n)   --no capture => captures whole match, here ''. so let us tranform it back to nil.
+    local function write (v)
+        stack:write(v)
+    end
+    local function pop(_, _, n) n = tonumber(n)   --no capture => captures whole match, here ''. so let us tranform it back to nil.
         --shouldn't happen, if it does, it's most likely an error in the compiler.
         n = n or 1 assert(n <= #stack, ([[trying to pop the stack while empty!
 At opCode line %s
 Trying to pop %s values
 from stack %s]]):format(tonumber(pc), n, pt(stack)))
-        trace:push('-> ' .. concat(', ', stack:unpack(#stack - n + 1)))
+        trace:push('-> ' .. concat(stack, nil, #stack - n + 1))
         --trace:push(pt(stack):gsub('[\n\t]', ' ') .. '')
         return true, stack:pop(n)
     end
-    local function peek()
-        return true, stack:peek()
+    local function peek(_, _, n) n = tonumber(n)
+        --shouldn't happen, if it does, it's most likely an error in the compiler.
+        n = n or 1 assert(n <= #stack, ([[trying to pop the stack while empty!
+At opCode line %s
+Trying to pop %s values
+from stack %s]]):format(tonumber(pc), n, pt(stack)))
+        return true, stack:peek(n)
     end
     local function inc()
         pc = pc + 1
@@ -122,13 +95,14 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
     local runSwitch = lpeg.Switch {
         --basic
         push = P'' * inc * line / push,
+        write = P'' * inc * line / write,
         pop = P'' * pop / 0,
-        peek = P'' * peek / push,
+        dup = P'' * peek / push,
         load = Cc(mem) * inc * line / get / push,
         store = Cc(mem) * inc * line * pop / set,
         print = Cc'@' * pop / print,
-        ret = Cc"Mauvaise hauteur de stack en fin de return:\n" / function (err)
-            assert(#stack == 1, err .. pt(stack))
+        ret = Cc"Incorrect Stack height upon return:\n" / function (err)
+            assert(#stack == 1, err .. tostring(stack) .. "\t len:\t" .. #stack)
             return true
         end,
         --control structures
@@ -139,7 +113,9 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         jmpop_NZ = P'' * pop * inc * line / function (a, d) if a ~= 0 then pc = pc + d end end,
         ---@TODO use meta programming ?
         --binary operations
-        add = Cmt(Cc(2), pop) / function(a, b) return a + b end             / push,
+        add0= Cmt(Cc(2), pop) / function(a, b) return a + b end             / push,
+        add = P(function() stack.top = stack[-1] + stack:pop() end),
+        add2= P(function() stack:write(stack[-1] + stack:pop()) end),
         sub = Cmt(Cc(2), pop) / function(a, b) return a - b end             / push,
         mul = Cmt(Cc(2), pop) / function(a, b) return a * b end             / push,
         div = Cmt(Cc(2), pop) / function(a, b) return a / b end             / push,
@@ -149,7 +125,8 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
     ["or"]  = Cmt(Cc(2), pop) / function(a, b) return a == 0 and b  or a end/ push,
         --unary operations
         plus = P'' / push,
-        minus = P'' * pop / function(a) return -a end / push,
+        minus0 = P'' * peek / function(a) return -a end / write,
+        minus  = P(function() stack.top = -stack.top end),
         ["not"] = P'' * pop / function(a) return a == 0 and 1 or 0 end / push,
         --binary comparisons
         lt = Cmt(Cc(2), pop) / function(a, b) return a < b end / boolToInt / push,
@@ -188,7 +165,7 @@ from stack %s]]):format(tonumber(pc), n, pt(stack)))
         print(trace:unpack())
         trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
     until runSwitch(code[pc]) == true -- or print(pc, code[pc], runSwitch[code[pc]])
-    return stack:unpack()
+    return stack:peek(#stack)
 end
 
 --------------------------------------------------------------------------------

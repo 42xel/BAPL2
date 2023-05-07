@@ -7,7 +7,6 @@ simple quotes ' ' are used for strings that are only used in internal representa
 
 double  quotes " " are used for strings which appear verbatim (in filename, source code, output, ...)
 ]]
----@diagnostic disable-next-line: unused-local
 _README = nil
 
 --------------------------------------------------------------------------------

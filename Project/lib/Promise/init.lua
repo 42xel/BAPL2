@@ -1,4 +1,5 @@
----@TODO  don't forget to se weak tables when applicable.
+---@TODO  don't forget to use weak tables when applicable.
+---@TODO don't forget __gc either. For example, it could be used to raise warnings or errors about ost unresovled promises, and about uncauught arrors.
 
 --A module providing naked proactive promise
 --Naked means the user can inspect and temper with their internals as pleases

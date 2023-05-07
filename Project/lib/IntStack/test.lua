@@ -2,9 +2,9 @@
 local IntStack = require "IntStack"
 local pt = require"pt".pt
 
-
 --print("pt(IntStack.sizes)", pt(IntStack.sizes))
 
+--local a = IntStack:new{"hello", "world"}
 local a = IntStack:new{"hello", "world"}
 
 --print(a:get"top")

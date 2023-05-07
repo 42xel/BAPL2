@@ -97,10 +97,10 @@ function IntStack:_defaultSettersFactory()
     return self._defaultSetters
 end
 
-Proxy:new(IntStack)
+Proxy(IntStack)
 IntStack.__call = nil
 
 ---@diagnostic disable-next-line: cast-type-mismatch
----@cast IntStack ({new: fun(self:Proxy, t:table):IntStack}) | fun(t:table):IntStack
+---@cast IntStack ({new: fun(self:Proxy, t:table):IntStack})
 ---@diagnostic disable-next-line: param-type-mismatch
 return IntStack

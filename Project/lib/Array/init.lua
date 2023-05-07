@@ -1,6 +1,6 @@
----@class Array : number[]
-
----@type fun(t:table):Array
+---The first (and for now only) data structure of the language.
+--@class Array : number[]
+---@alias Array number[]
 
 local Array = {__name = 'Array'}
 do  --localising ArraySizes

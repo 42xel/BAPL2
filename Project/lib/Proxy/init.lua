@@ -46,8 +46,9 @@ Proxy.init = setmetatable({}, {__call = function (init, proto)
     if proto.metaSetters == nil then proto.metaSetters = setmetatable({}, __mode) end
 
     if rawget(proto, '__index') == nil then
+        rawset(proto, '__index',
         ---@param self table the proxy missing the key `k`.
-        function proto:__index(k)
+        function (self, k)
             --print("k", k)
             local index = proto.metaGetters[self][k] or rawget
             --print("index == rawget", index == rawget)
@@ -57,20 +58,22 @@ Proxy.init = setmetatable({}, {__call = function (init, proto)
             else
                 return index[k]
             end
-        end
+        end)
     end
     if rawget(proto, '__newindex') == nil then
-        ----@param self table the proxy missing the key `k`.
-        function proto:__newindex(k, v)
+        rawset(proto, '__newindex',
+        ---@param self table the proxy missing the key `k`.
+        function (self, k, v)
             local index = proto.metaSetters[self][k] or rawset
             if type(index) == 'function' then
                 index(self, k, v)
             else
                 index[k] = v
             end
-        end
+        end)
     end
-    proto.__call = proto.__call or proto.new
+    if rawget(proto, '__call') == nil then
+        rawset(proto, '__call', proto.new) end
     init[proto] = true
     return true
 end})

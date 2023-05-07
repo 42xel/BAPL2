@@ -186,7 +186,6 @@ function Compiler:subCodeGen(ast, field)
     if ast[field] == nil then print(([[
         Warning empty field in subCodeGen while parsing %s, looking for field %s.
         It may be anything from a mistake in the parser or the compiler to someone's malpractice with empty statements.
-        POSSIBLY A FORGOTTEN ':' BETWEEN codeGen and disp
         ]])
             :format(pt(ast), field))
         return self, ast

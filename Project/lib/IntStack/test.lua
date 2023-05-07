@@ -26,3 +26,10 @@ print(a)
 
 print(a:pop(2))
 print(a)
+
+a:write"was"
+print(a)
+
+local b = IntStack:new()
+b:write"Ciao!"
+print(b)

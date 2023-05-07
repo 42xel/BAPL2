@@ -37,4 +37,6 @@ function Stack:__call (n)
     return type(n) == "number" and (n > 0 and self[n] or self[#self + n + 1])
 end
 
+---@diagnostic disable-next-line: cast-type-mismatch
+---@cast Stack Stack|fun(t?:table):Stack
 return Stack

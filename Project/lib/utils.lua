@@ -11,6 +11,7 @@ function get(t, k)
 end
 function set(t, k, v)
     t[k] = v
+    return v
 end
 
 --------------------------------------------------------------------------------
@@ -68,8 +69,10 @@ end
 --------------------------------------------------------------------------------
 --lpeg switch
 
-local default = Symbol["lpeg.Switch.default"]
+--local default = Symbol["lpeg.Switch.default"]
+local default = {}
 local missing = lpeg.P''
+---@TODO add error handling to provide the name of the entry at fault upon error
 lpeg.Switch = setmetatable({
     default = default,
     __call = function(self, case, ...)

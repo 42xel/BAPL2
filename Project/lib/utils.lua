@@ -1,5 +1,8 @@
 --@diagnostic disable: lowercase-global
----@TODO split utils in utils an lpegUtils
+---@TODO split utils in utils an lpegUtils. Other files would load lpeg through lpegUtils
+
+---@alias lpegPatt any
+
 lpeg = require"lpeg"
 
 local Object = require"Object"
@@ -69,10 +72,14 @@ end
 --------------------------------------------------------------------------------
 --lpeg switch
 
+---@alias lpegSwitch fun(sw:string, ...:any):any
+
 --local default = Symbol["lpeg.Switch.default"]
 local default = {}
 local missing = lpeg.P''
 ---@TODO add error handling to provide the name of the entry at fault upon error
+---@type fun(t:{[string]:lpegPatt}):lpegSwitch
+---@diagnostic disable-next-line: assign-type-mismatch
 lpeg.Switch = setmetatable({
     default = default,
     __call = function(self, case, ...)

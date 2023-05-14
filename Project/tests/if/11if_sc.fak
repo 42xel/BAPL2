@@ -1,0 +1,2 @@
+if 0; @ = 1
+#errors because of the semi colon

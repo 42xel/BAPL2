@@ -1,13 +1,21 @@
 ---@TODO : rewrite as a register machine in C++, Kotlin or Rust. Main factor for choice : memory allocation : Java : already has a GC.
 ---the compiler doesn't need to be writtent in Rust, but I will need to be rewritten, as the instructions set will change upon transitionning to a register machine.
 ---@TODO use enums to help lua-language-server helping me being consistent accross parser, compiler and interpreter
+---@TODO use auxiliary files for auxiliary functions ? Like one file one small responsibility ?
+---@type boolean
+if _COMPILER_DEBUG == nil then
+    _COMPILER_DEBUG = true
+end
 
 local pt = require "pt".pt
 local lpeg = require"lpeg"
 
-local Object = require"Object"
+--local Object = require"Object"
 local Stack = require"Stack"
 local Symbol = require"Symbol"
+
+local Node = require"ASTNode"
+local nodeAssign = Node.nodeAssign
 
 --local utils =
  require "utils"
@@ -35,45 +43,26 @@ local Cmt = lpeg.Cmt
 --------------------------------------------------------------------------------
 ---@TODO (low prio) legible code for debug mode.
 
-local varsn = Symbol() ;
-local metaCompiler = Object:new()
----@class Compiler : Object
+---@class Compiler : table
 ---@field code Stack
----@field vars table
----@field new fun (self:Compiler, t?:table) : Compiler
-local Compiler = metaCompiler:new
-{
-    code = Stack{},
-    --A biderectional table of variable names and their numerical index in the memory
-    vars = setmetatable({[varsn] = 1},{
-        __index = function(self, key)
-            self[key] = self[varsn]
-            self[self[varsn] ] = key
-            self[varsn] = self[varsn] + 1
-            return self[key]
-        end,
-    }),
---    --A  table of labels and their numerical position
---    labels = setmetatable({},{
---        __index = function (self, key)
---            self[key] = Promise:new()
---            return self[key]
---        end,
---    })
-}
----@TODO Compiler.new
+---@field vars table A biderectional table of variable names and their numerical index in the memory
+---@field switch lpegSwitch The main switch. Recursively compiles the ast, depending on their tag, and returns the current compiler and AST for ease of chaining
+----@field zoo table a florilege of functions use to handle varaibles
+----@field new fun (self:Compiler, t?:table) : Compiler
+local Compiler = {}
 
 --[[
-    Adds a single literal line to the code. Returns `self, ast`.
+    Adds a single literal line to the code.
 ]]
 function Compiler:addCode(opCode)
     self.code:push(opCode)
 end
----Adds a single literal line to the code. Returns `self, ast`, for ease of chaining in the switch.
----@see Compiler.addCode
-local function addCode(compiler, ast, opCode)
-    compiler:addCode(opCode)
-    return compiler, ast
+--[[
+    Adds a single literal line to the code. Returns `self, ast`.
+]]
+function Compiler:c_addCode(ast,opCode)
+    self.code:push(opCode)
+    return self, ast
 end
 --[[
     Adds a field verbatim to the code. Returns `self, ast`.
@@ -81,11 +70,6 @@ end
 function Compiler:addCodeField(ast, field)
     self:addCode(ast[field])
     return self, ast    --to allow chaining in pattern code blocks
-end
----Adds a field verbatim to the code. Returns `self, ast`, for ease of chaining in the switch.
----@see Compiler.addCodeField
-local function addCodeField(compiler, ast, field)
-    return compiler:addCodeField(ast, field)
 end
 
 ---@TODO raise error when incorrect operator is used.
@@ -126,58 +110,24 @@ local codeOP = setmetatable({}, {__index = function (self, k)
     return rawget(self, k)
 end})
 
----a florilege of functions use to handle varaibles
----@TODO why tf is it a compiler ??
----@TODO make that a field of the compiler, and create it upon new.
-local zoo = Compiler:new()
-function zoo:invalidAst(ast)
+function Compiler:invalidAst(ast)
     error("invalid ast : " .. pt(ast), 2)
-end
-function zoo:getVariable(ast)
-    -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
----@diagnostic disable-next-line: redundant-parameter
-        return Compiler.addCode(self, ast, assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast))), nil)
-end
-local _invalidAst = Cargs(2) / zoo.invalidAst
-
---[=[
-local switch = {}
---relevant for metaCompiler.__call I guess
-Compiler.switch = switch
-local _codeDispPatt = C'exp' + C'stat'
---(recursively) expands expression and statements into relevant code
-local codeGen = Compiler:new{}
---relevant for metaCompiler.__call I guess
-Compiler.codeGen = codeGen
-function codeGen:disp(ast, field)
-    if ast[field] == nil then print(([[
-Warning empty field in codeGen.disp while parsing %s, looking for field %s.
-It may be anything from a mistake in the parser or the compiler to user malpractice with empty statements.
-POSSIBLY A FORGOTTEN ':' BETWEEN codeGen and disp
-]])
-    :format(pt(ast), field)) return self, ast end
-    local new_ast = ast[field]
-    self.switch[_codeDispPatt:match(field)](new_ast.tag, self, new_ast)
     return self, ast
 end
-function codeGen:exp(ast)
-    self.switch.exp(ast.tag, self, ast)
+function Compiler:getVariable(ast)
+    return self:addCode(assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast)))
+-- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
+-- Upon rework of addCode, I had an issue with redundant parameter, given I no longer needed AST.
+-- Best practice is to disable as little as possile, and splitting lines is a great idea for that.
+---@diagnostic disable-next-line: redundant-parameter
+    , nil )
 end
-function codeGen:stat(ast)
-    self.switch.stat(ast.tag, self, ast)
-end
---]=]
 
 --[[
     A function which recursively generates the code of an AST
 ]]
 function Compiler:codeGen(ast)
-    self.switch(ast.tag, self, ast)
-end
----A function which recursively generates the code of an AST
----@see Compiler.codeGen
-local function codeGen(compiler, ast)
-    return compiler:codeGen(ast)
+    return self.switch(ast.tag, self, ast)
 end
 --[[
     A function which expands the code of `ast[field]`. Returns `self, ast`.
@@ -186,17 +136,13 @@ function Compiler:subCodeGen(ast, field)
     if ast[field] == nil then print(([[
         Warning empty field in subCodeGen while parsing %s, looking for field %s.
         It may be anything from a mistake in the parser or the compiler to someone's malpractice with empty statements.
+        Hopefully, it is just a missing optional expression.
         ]])
             :format(pt(ast), field))
         return self, ast
     end
     self:codeGen(ast[field])
     return self, ast
-end
----A function which expands the code of `ast[field]`. Returns `self, ast`, for ease of chaining in the switch.
----@see Compiler.subCodeGen
-local function subCodeGen(compiler, ast, field)
-    return compiler:subCodeGen(ast, field)
 end
 
 --[[
@@ -222,62 +168,43 @@ function Compiler:jmp(jmp, p)
     return p
 end
 
----expands an assignement, depending on its left hand side's tag.
----@type fun(lhs_tag : string, state : Compiler, ast : table): Compiler, table
---[[@TODO see if you want to keep variables as a disinct lhs from indexed.<br>
-Probably yes, because they can be loaded into a static region of memory and more easily accessed.<br>
-Besides, allocation of custom objects may make things even worse.
-]]
-local switch_assign = lpeg.Switch{
-    variable = Cargs(2) * Cc'exp' / subCodeGen * Cc'store' / addCode / function(self, ast)
-        self:addCode(self.vars[ast.lhs.var]) end * Cargs(2),
-    --[[
-    I feel it's important to compile the lhs before the expression to assign.
-    I'm pretty sure JS and C++ have different stances on it (don't remember which, and they did not always have one), which can been tested by putting border effects.
-    The reasons behind my choice are as follows :
-
-- It follows reading order.
-- Depending on the lhs, I might want to treat the expression value differently (no big deal) or not at all.
-For example ̀`[3,4,0,5,9]` may not mean the same physically whether it's a bool, short int, int, or double array, and as such, might not be translated the same in opCode.
-    ]]
-    indexed = Cargs(2) / function (self, ast)
-        ---@TODO For much later : think about binding or trick like lua's obj:method, and how to make sort of currification, so that it's not just for the last field.
-        self:subCodeGen(ast.lhs, 'exp_ref') ---@TODO thinkabout fields, arrays of arrays...
-        self:subCodeGen(ast.lhs, 'exp_index')
-        self:subCodeGen(ast, 'exp')
-        return self:addCode(ast, 'set')
-    end
-}
-
+---@TODO optimizethis as well as Imply (I feel like there must be a way to reduce the length of opCode, the number of jumps in particular.)
 ---@param self Compiler
 ---@param ast AST
 function Compiler:Xjunction(ast, jmp)
     self:codeGen(ast.exp1)
     local pEnd = self:jmp(jmp)
-    self:addCode'pop'
     self:codeGen(ast.exp2)
     pEnd:honor(#self.code)
 end
----@see Compiler.Xjunction
-local function Xjunction (compiler, ast, jmp)
-    return compiler:Xjunction(ast, jmp)
+---@param self Compiler
+---@param ast AST
+function Compiler:Imply(ast)
+    self:codeGen(ast.exp1)
+    local pNo = self:jmp'jmp_Z'
+    self:codeGen(ast.exp2)
+    local pEnd = self:jmp'jmp'
+    pNo:honor(#self.code)
+    self:addCode'write'
+    self:addCode(1)
+    pEnd:honor(#self.code)
 end
 
 function Compiler:newArray (ast)
-    if ast.exp_size then    --defined using size
-        codeGen:disp(ast, 'exp_size')
+    if ast.size then    --defined using size
+        self:subCodeGen(ast, 'size')
         self:addCode'c_new'
-        if ast.exp_default then
+        if ast.default then
             --testing whether the size is an integer
-            self:addCode'peek'
+            self:addCode'dup'
             self:addCode'push'
             self:addCode(1)
             self:addCode'mod'
             local pInt = self:jmp('jmpop_Z')
-            self:addCode'error_array_size'
+            self:addCode'error_array_size'  ---@TODO (after opCode made fully number) do something cleaner than an unknown instruction error.
             --testing whether size >= 0
             pInt:honor(#self.code)
-            self:addCode'peek'
+            self:addCode'dup'
             self:addCode'push'
             self:addCode(0)
             self:addCode'gt'
@@ -285,7 +212,7 @@ function Compiler:newArray (ast)
 
             --main loop
             local pLoop = Promise:honored(#self.code)
-            codeGen:disp(ast, 'exp_default')
+            self:subCodeGen(ast, 'default') ---@TODO (after functions and register machine) : fill the array from the bottom up rather than top to bottom.
             self:addCode'c_set'
             self:addCode'push'
             self:addCode(1)
@@ -295,118 +222,238 @@ function Compiler:newArray (ast)
         end
         self:addCode'pop'    --popping the index at the end of the loop, to leave the array at the top of the stack
     else    --defined with a literral
-        self:addCode'push'
-        self:addCode(#ast.values)
-        self:addCode'new'
-        for i = 1, #ast.values do
-            self:addCode'push'
-            self:addCode(i)
-            codeGen:exp(ast.values[i])
-            self:addCode'c_set'   --to keep the array
-            self:addCode'pop'     --to get rid of the index
-        end
+        self:subCodeGen(ast, 'content')
+        self:addCode'pack'
     end
     return self, ast
 end
----@see Compiler.newArray
-local function newArray (compiler, ast)
-    return compiler:newArray(ast)
-end
 
---Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
---Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf variable)
---obfuscating ? 
----@TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
----@TODO depreciate state_X
-Compiler.switch = lpeg.Switch{
-    number = Cargs(2) * Cc'write' / addCode * Cc'val' / addCodeField,
-    variable = Cargs(2) * Cc"load" / addCode
-        / zoo.getVariable,
-       -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / addCode,
-    indexed = Cargs(2) * Cc'exp_ref' / subCodeGen * Cc'exp_index' / subCodeGen * Cc'get' / addCode,
-    ---@TODO depending on how floats are treated, revisit.
-    --I should be able to write it higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
-    new = Cargs(2) / newArray,
-    Array = Cargs(2) * Cc'exp_size' / subCodeGen * Cc'new' / addCode, ---only returns a ref to the array, does not not assign it.
-    unaryop = Cargs(2) * Cc'exp' / subCodeGen / codeOP.u / addCode,
-    binop = Cargs(2) * Cc'exp1' / subCodeGen * Cc'exp2' / subCodeGen / codeOP.b / addCode,
-    conjunction = Cc'jmp_Z' * Xjunction,
-    disjunction = Cc'jmp_NZ' * Xjunction,
-    compChain = Cargs(2) / function (self, ast)
-        self:codeGen(ast.chain[1])
-        local pFail = Promise:new()
-        for i = 3, #ast.chain - 2, 2 do
-            self:codeGen(ast.chain[i])
-            self:addCode(Compiler.codeOP.c[ast.chain[i-1]])  --compares while consuming only the first argument
-            self:jmp('jmpop_Z', pFail)
-        end
-        self:codeGen(ast.chain[#ast.chain])
-        self:addCode(Compiler.codeOP.b[ast.chain[#ast.chain - 1]])  --compares while consuming both arguments
-        if #ast.chain > 3 then
-            local pEnd = self:jmp'jmp'
-            pFail:honor(#self.code)
-            --print("bla", ast.chain[#ast.chain - 1])
-            self:addCode'pop'    --pop value
-            self:addCode'push'
+--The compiler metatable. contains the metamethods as welle as method related to creation
+local metaCompiler = {__name = "Compiler"}
+--[[
+    A compiler creator.
+]]
+----@return Compiler
+---@param r Compiler
+function metaCompiler:new(r)
+    --initializing metamethods
+    self.__index = rawget(self, '__index') or self
+    if rawget(self, '__call') == nil then
+        ---@param self Compiler
+        function self:__call(ast)
+            self:addCode("write")
             self:addCode(0)
-            pEnd:honor(#self.code)
-        else    ---@TODO not letting a pending promise out in the open, not sure how necessary or sufficient it is. It probably isn't, to ponder when doing GC with promises.
-            ---@TODO probably better, but catch not inplemented yet
-            -- pFail.catch() pFail:betray()
-
-            pFail:honor(nil)
+            self:codeGen(ast)
+            self:addCode("ret")
+            return self.code
         end
-    end * Cargs(2),
+    end
 
-    assign = Cargs(2) / function (self, ast)
-        switch_assign(ast.lhs.tag, self, ast) --can't use `/ switch_assign` directly because `switch_assign` is actually a table.
-    end,
---    [lpeg.Switch.default] = _invalidAst,
---}
+    --initializing data
+    r = r or {}
+    r.code = r.code or Stack{}
+    do
+        local varsn = Symbol'varsn'
+        r.vars = setmetatable({[varsn] = 1},{
+            __index = function(vars, key)
+                vars[key] = vars[varsn]
+                vars[vars[varsn] ] = key
+                vars[varsn] = vars[varsn] + 1
+                return vars[key]
+            end,
+        })
+    end
+--    --A  table of labels and their numerical position
+--    labels = setmetatable({},{
+    --        __index = function (self, key)
+    --            self[key] = Promise:new()
+    --            return self[key]
+    --        end,
+    --    })
 
----@TODO cleaning : don't use code.disp when not necessary
---switch.stat = lpeg.Switch{
-    void = lpeg.P(true),
-    ["if"] = Cargs(2) * Cc'exp_cond' / subCodeGen / function (self, ast)
-        local pEndThen = self:jmp"jmpop_Z" --consuming the stack top value after a conditional jump.
-        codeGen:disp(ast, "stat_then")
+    --initializing the main switch
+    setmetatable(r, self)
 
-        if ast.stat_else then
-            local pEndIf = self:jmp"jmp"
-            pEndThen:honor(#self.code)    --it's ok, the interpreter adds 1
-            codeGen:disp(ast, "stat_else")
-            pEndIf:honor(#self.code)
-        else
-            pEndThen:honor(#self.code)
-        end
-    end * Cargs(2),
-    ["while"] = Cargs(2) / function (self, ast)
-        local pStart = Promise:honored(#self.code)
-        codeGen:disp(ast, 'exp_cond')
-        local pEnd = self:jmp"jmpop_Z"
-        codeGen:disp(ast, 'stat')
-        self:jmp("jmp", pStart)
-        pEnd:honor(#self.code)
-    end * Cargs(2),
-    ["return"] = Cargs(2) * Cc'exp' / subCodeGen * Cc'ret' / addCode,
-    print = Cargs(2) * Cc'exp' / subCodeGen * Cc'print' / addCode,
-    stat_assign = Cargs(2) / function (self, ast)
-        switch_assign(ast.lhs.tag, self, ast) --can't use `/ switch_assign` directly because `switch_assign` is actually a table.
-    end,
-    seq = Cargs(2) / function (self, ast) ---@param self Compiler
-        for _, s in ipairs(ast.stats) do
-            self:codeGen(s)
-        end
-    end * Cargs(2),
-    [lpeg.Switch.default] = _invalidAst,
-}
+    ---Adds a single literal line to the code.
+    ---@see Compiler.addCode
+    local addCode = _COMPILER_DEBUG and
+    function (compiler, opCode)
+        local t = type(opCode)
+        assert(t == 'number' or t == 'string', "addCode : trying to push code other than number:\t" .. pt(t))
+        compiler:addCode(opCode)
+    end or r.addCode
+    local c_addCode = _COMPILER_DEBUG and
+    ---Adds a single literal line to the code. Returns `self, ast`, for ease of chaining in the switch.
+    ---@see Compiler.c_addCode
+    function (compiler, ast, opCode)
+        local t = type(opCode)
+        assert(t == 'number' or t == 'string', "addCode : trying to push code other than number:\t" .. pt(t))
+        compiler:addCode(opCode)
+        return compiler, ast
+    end or r.c_addCode
+    ---Adds a field verbatim to the code. Returns `self, ast`, for ease of chaining in the switch.
+    ---@see Compiler.addCodeField
+    local addCodeField = _COMPILER_DEBUG and
+    function (compiler, ast, field)
+        return c_addCode(compiler, ast, ast[field])
+    end or r.addCodeField
+    local getVariable = r.getVariable
+    ---A function which recursively generates the code of an AST
+    ---@see Compiler.codeGen
+    local codeGen = r.codeGen
+    ---A function which expands the code of `ast[field]`. Returns `self, ast`, for ease of chaining in the switch.
+    ---@see Compiler.subCodeGen
+    local subCodeGen = r.subCodeGen
 
-function metaCompiler:__call(ast) ---@param self Compiler
-    self:addCode("write")
-    self:addCode(0)
-    self:codeGen(ast)
-    self:addCode("ret") --elegant, now that everything is expression, but the empty program may not be valid any more
-    return self.code
+    ---@see Compiler.Xjunction
+    local Xjunction = r.Xjunction
+    ---@see Compiler.Imply
+    local Imply = r.Imply
+    ---@see Compiler.newArray
+    local newArray = r.newArray
+
+    ---expands an assignement, depending on its left hand side's tag.
+    ---@type fun(lhs_tag : string, state : Compiler, ast : table): Compiler, table
+    --[[@TODO see if you want to keep variables as a disinct lhs from indexed.<br>
+    Probably yes, because they can be loaded into a static region of memory and more easily accessed.<br>
+    Besides, allocation of custom objects may make things even worse.
+    ]]
+    r.switch_assign = r.switch_assign or lpeg.Switch{
+        ---@TODO rename global ? issue with scopes and overload. Ideally, lhs processed before rhs.
+        variable = Cargs(2) * Cc'exp' / subCodeGen * Cc'store' / c_addCode / function(state, ast)
+            addCode(state, state.vars[ast.lhs.var]) end * Cargs(2),
+        --[[
+        I feel it's important to compile the lhs before the expression to assign.
+        I'm pretty sure JS and C++ have different stances on it (don't remember which, and they did not always have one), which can been tested by putting border effects.
+        The reasons behind my choice are as follows :
+
+    - It follows reading order.
+    - Depending on the lhs, I might want to treat the expression value differently (no big deal) or not at all.
+    For example ̀`[3,4,0,5,9]` may not mean the same physically whether it's a bool, short int, int, or double array, and as such, might not be translated the same in opCode.
+        ]]
+        indexed = Cargs(2) / function (state, ast)
+            ---@TODO For much later : think about binding or trick like lua's obj:method, and how to make sort of currification, so that it's not just for the last field.
+            subCodeGen(state, ast.lhs, 'ref') ---@TODO (done already?) thinkabout fields, arrays of arrays...
+            addCode(state, 'up')
+            subCodeGen(state, ast.lhs, 'index')
+            addCode(state, 'up')
+            subCodeGen(state, ast, 'exp')
+            return c_addCode(state, ast, 'set')
+        end,
+        --print
+        io = Cargs(2) * Cc'exp' / subCodeGen * Cc'print' / c_addCode,
+        assign = Cargs(2) / function (state, ast)
+            subCodeGen(state, ast, 'lhs')
+            codeGen(state, nodeAssign(ast.lhs.lhs, ast.exp))
+        end,
+    }
+    local switch_assign = r.switch_assign
+
+    --Using pattern matching to write code block of sort without having to explicitely write a new function per entry.
+    --Sometimes, writing a function is the shortest, especially when using and reuising arguments, but can still easily be incorporated in the pattern (cf. variable)
+    --obfuscating ?
+    ---@TODO factorize Cargs(2) ? is it possible in any satisfactory way ?
+    ---@TODO depreciate state_X
+    ---@remark : the switch is put in the new so as to have local functions (addCode, etc.) as well as for inheritance I guess
+    r.switch = r.switch or lpeg.Switch{
+        void = lpeg.P(true),
+        number = Cargs(2) * Cc'write' / c_addCode * Cc'val' / addCodeField,
+        variable = Cargs(2) * Cc'load' / c_addCode / getVariable,
+        -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
+        indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
+        ---@TODO depending on how floats are treated, revisit.
+        --I should be able to write it higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
+        new = Cargs(2) / newArray,
+        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
+        unaryop = Cargs(2) * Cc'exp' / subCodeGen / codeOP.u / c_addCode,
+        binop = Cargs(2) * Cc'exp1' / subCodeGen * Cc'up' / c_addCode * Cc'exp2' / subCodeGen / codeOP.b / c_addCode,
+        conjunction = Cargs(2) * Cc'jmp_Z' / Xjunction,
+        disjunction = Cargs(2) * Cc'jmp_NZ' / Xjunction,
+        imply = Cargs(2) * Cc'jmp_NZ' / Imply,
+        compChain = Cargs(2) / function (state, ast)
+            codeGen(state, ast.chain[1])
+            local pFail = Promise:new()
+            for i = 3, #ast.chain - 2, 2 do
+                addCode(state, 'up')
+                codeGen(state, ast.chain[i])
+                addCode(state, r.codeOP.c[ast.chain[i-1]])  --compares while consuming only the first argument
+                state:jmp('jmpop_Z', pFail)
+            end
+            addCode(state, 'up')
+            codeGen(state, ast.chain[#ast.chain])
+            addCode(state, r.codeOP.b[ast.chain[#ast.chain - 1]])  --compares while consuming both arguments
+            if #ast.chain > 3 then
+                local pEnd = state:jmp'jmp'
+                pFail:honor(#state.code)
+                addCode(state,'write')
+                addCode(state, 0)
+                pEnd:honor(#state.code)
+            else    ---@TODO not letting a pending promise out in the open, not sure how necessary or sufficient it is. It probably isn't, to ponder when doing GC with promises.
+                ---@TODO probably better, but catch not inplemented yet
+                -- pFail.catch() pFail:betray()
+
+                pFail:honor(nil)
+            end
+        end * Cargs(2),
+
+        assign = Cargs(2) / function (state, ast)
+            return switch_assign(ast.lhs.tag, state, ast) --can't use `/ switch_assign` directly because `switch_assign` is actually a table.
+        end,
+
+        ['if'] = Cargs(2) * Cc'cond' / subCodeGen / function (state, ast)
+            local pEndThen = state:jmp'jmp_Z'
+            subCodeGen(state, ast, "then")
+            if ast["else"] then
+                local pEndIf = state:jmp'jmp'
+                pEndThen:honor(#state.code)    --it's ok, the interpreter adds 1
+                subCodeGen(state, ast, "else")
+                pEndIf:honor(#state.code)
+            else
+                pEndThen:honor(#state.code)
+            end
+        end * Cargs(2),
+        ['while'] = Cargs(2) / function (state, ast)
+            addCode(state, 'push')
+            addCode(state, 0)   --yields O if falsy. TODO ? yield cond value instead ? hard with stack machine without dupicating the code generating the expression. Myabe wiht an opInsruction duplicate next ?? With a register should be easy.
+            local pStart = Promise:honored(#state.code)
+            subCodeGen(state, ast, 'cond')
+            local pEnd = state:jmp'jmpop_Z'
+            subCodeGen(state, ast, 'stat')
+            addCode(state, 'up')
+            state:jmp('jmp', pStart)
+            pEnd:honor(#state.code)
+        end * Cargs(2),
+        ['return'] = Cargs(2) * Cc'exp' / subCodeGen * Cc'ret' / c_addCode,
+        --input
+        io = Cargs(2) * Cc'read' / c_addCode,
+        ---@param state Compiler
+        ---we push the full list, clean what comes after, then moves the head to the start.
+        ---I voluntarilly don't clean systemetically after every expression, but only after creation and usage of list.
+        ---It's up to the user to not use stack garbage by writing monstrosity such as `a,b = 2 ^ (3,4) * (5 + 6)`
+        ---I guess the following could be used to forcefully clean the stack : `a,b = 2 ^ (3,4), * (5 + 6)`
+        ---@TODO I guess some warnings and some coercion could be done in the compiler or parser still.
+        ---@TODO but yeah, keeping the stack clean is another way to circumvent these issue, but it's not that trivial.
+        ---@TODO with a register, it should be aok.
+        list = Cargs(2) / function (state, ast)
+            for _, e in ipairs(ast.exps) do
+                codeGen(state, e)
+                addCode(state, 'up')
+            end
+            addCode(state, 'clean')
+            addCode(state, 'mv')
+            addCode(state, #ast.exps)
+        end * Cargs(2),
+        seq = Cargs(2) / function (state, ast) ---@param state Compiler
+            for _, s in ipairs(ast.stats) do
+                state:codeGen(s)
+            end
+        end * Cargs(2),
+        [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
+    }
+
+    return r
 end
+metaCompiler:new(Compiler)
+
 --------------------------------------------------------------------------------
 return Compiler

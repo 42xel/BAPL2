@@ -21,9 +21,12 @@ print(a)
 _ = a << "how" << "are" << "you" << "my" << "dear?"
 
 print(a)
+print(a[-2])
+print(a[0])
 a.len = 4
 print(a)
 
+print(a:pop())
 print(a:pop(2))
 print(a)
 

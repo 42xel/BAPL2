@@ -22,8 +22,8 @@ local Proxy = {__name = "Proxy"}
     It allows many things among which privacy, sand-boxing, as well as custom setters and getters.
     ]]
     ---@param destination Proxy the resulting proxy.
-    ---@param getters? ProxyGettersTable a table of getters. <br>Each entry behaves like an `__index` metamethod of `destination` for a specific key. In other words, `destination[missingKey]` yields, if `getters[missingKey]` is a function, `getters[missingKey](destination, missingKey)`, otherwise `getters[missingKey][missingKey]`. Great fun ensues when getters itself has an `__index` methamethod. <br> If not provided, it returns a table
-    ---@param setters? ProxySettersTable a table of setters. <br>Each entry behaves like an `__newindex` metamethod of `destination` for a specific key. In other words, `destination[newKey] = value` invokes, if `setters[newKey]` is a function, `setters[newKey](destination, newKey, value)`, otherwise `setters[newKey][newKey] = value`. Great fun ensues when setters itself has an `__index` methamethod.
+    ---@param getters? ProxyGettersTable a table of getters. <br>Each entry behaves like an `__index` metamethod of `destination` for a specific key. In other words, `destination[missingKey]` yields, if `getters[missingKey]` is a function, `getters[missingKey](destination, missingKey)`, otherwise `getters[missingKey][missingKey]`. Great fun ensues when getters itself has an `__index` metamethod. <br> If not provided, it returns a table
+    ---@param setters? ProxySettersTable a table of setters. <br>Each entry behaves like an `__newindex` metamethod of `destination` for a specific key. In other words, `destination[newKey] = value` invokes, if `setters[newKey]` is a function, `setters[newKey](destination, newKey, value)`, otherwise `setters[newKey][newKey] = value`. Great fun ensues when setters itself has an `__index` metamethod.
     ----@return destination, getters, setters
 function Proxy:new(destination, getters, setters)
     self:init()
@@ -38,7 +38,7 @@ function Proxy:new(destination, getters, setters)
     self.metaSetters[destination] = setters
     return setmetatable(destination, self), getters, setters
 end
-local __mode = {__mode = 'kv'}
+local __mode = {__mode = 'k'}
 Proxy.init = setmetatable({}, {__call = function (init, proto)
 
     if init[proto] then return false end
@@ -49,11 +49,8 @@ Proxy.init = setmetatable({}, {__call = function (init, proto)
         rawset(proto, '__index',
         ---@param self table the proxy missing the key `k`.
         function (self, k)
-            --print("k", k)
             local index = proto.metaGetters[self][k] or rawget
-            --print("index == rawget", index == rawget)
             if type(index) == 'function' then
-                --print("index, rawget(self, '__name'), k", index, rawget(self, '__name'), k)
                 return index(self, k)
             else
                 return index[k]
@@ -87,11 +84,11 @@ function Proxy:_defaultGettersFactory()
     }
 end
 
----gets the value accoridng to the getter first (before rawget).
+---gets the value according to the getter first (before rawget).
 function Proxy:get(k)
     return getmetatable(self).__index(self, k)
 end
----sets the value accoridng to the setter first (before rawset).
+---sets the value according to the setter first (before rawset).
 function Proxy:set(k, v)
     getmetatable(self).__newindex(self, k, v)
 end

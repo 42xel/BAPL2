@@ -1,11 +1,20 @@
+---@TODO remove exp_ and stat_ prefixes
 ---@TODO vague floating idea : make code from AST. Put comments/annotations in AST
 ---enables pretty print, automatic documentation, helps introspection, debugging, reflexivity.
 ---helps changing syntax.
 local pt = require "pt".pt
 local lpeg = require "lpeg"
 
-local Object = require"Object"
 local Stack = require"Stack"
+local Node = require"ASTNode"
+
+local nodeNum = Node.nodeNum
+local nodeBinop = Node.nodeBinop
+local nodeFoldBinop = Node.nodeFoldBinop
+local nodeFoldBinopSuffix = Node.nodeFoldBinopSuffix
+local nodeUnaryop = Node.nodeUnaryop
+local nodeAssign = Node{tag = 'assign', "lhs", "exp"}
+
 require "utils"
 
 --TODO : use _ENV to put in a module. to call, for example, _ENV = require "require"
@@ -30,95 +39,6 @@ local I = lpeg.I
 ---lpeg Fold capture right associative
 local Cfr = lpeg.Cfr
 
----@TODO optimisation (eg with constant addition/multiplication etc)
----@TODO OOP : use __name and __tostring for custom objects.
---------------------------------------------------------------------------------
----@alias AST table
---------------------------------------------------------------------------------
-
-local MetaNode = Object{__name = "MetaNode"}
-local Node = MetaNode{__name = "Node",tag = "void", _sel = 1}
---[[
-a function generator which generates node functions, used to parse captures as nodes of the ast
-***
-### Usage: 
-look at examples
-
-    Node()  -- generates an empty node.
-    Node{tag = "tag", field1, field2}   -- generates based on a template
-    Node(predicate, number, {args1}, {args2})   -- uses a predicate on the numberth argument to chose another node function
-    Node(number)    -- when 0 < n : chooses the numberth argument
-    Node(number, args)  -- generate a function with the numberth argument as the starting node (as opposed to creating a new one)
-***
-#### TODO
-- (after OO) incorporate lineCount. Do you really need them ?
-- use meta programming
-- : document usage and returned function
-***
-### Node Templates:
-    {tag = "tag", [0] = vararg, field1, field2}
-#### TODO
-        more examples, with explanations
-]]
-function MetaNode:__call (t, n, argst1, argst2, ...)
-    if type(t) == "table" then
-        local sel = self._sel
-        return function (...)
-            local r = select(sel, {}, ...)
-            for k, v in pairs(t) do
-                local tk = type(k)
-                if k == 0 then
-                    r[v] = {select(1 + #t, ...)} --variable stuff of variable number.
-                elseif tk == "number" then  --variable stuff, such as exp1, exp2, stat1, stat2 ...
-                    r[v] = select(k, ...)
-                elseif tk == "string" then  --constant stuff, such as tag
-                    r[k] = v
-                end
-            end
-            return r
-        end
-    elseif type(t) == "function" then
-        return function (...)
-            if t(select(n, ...)) then
-                return Node[argst1](...)
-            else
-                return Node[argst2](...)
-            end
-        end
-    elseif type(t) == "number" then
-        self._sel = t + 1
-        local r = self(n, argst1, argst2, ...)
-        self._sel = 1
-        return r
-    elseif type(t) == "nil" then
-        local sel = self._sel
-        return function(...) return select(sel, {}, ...) end
-    else
-        error("MetaNode:__call() : first argument must be a table, a function or a number. Got "
-            .. tostring(t)
-            .. (type(t) == "userdata" and " . You might be using something undefined (_G shenanigans)." or ''))
-    end
-end
-Node.empty = {tag = 'void'}
-function MetaNode:__index(packedTable)
-    if packedTable == nil then return print("packedTable nil") and Node.empty
-    elseif type(packedTable) ~= 'table' then return print("packedTable not table") end
-
-    self[packedTable] = self(table.unpack(packedTable))
-    return self[packedTable]
-end
-function Node.isEmpty(self)
-    return self == nil or self.tag == 'void'
-end
-
-local nodeNum = Node{tag = 'number', 'val'}
-
-local nodeBinop = Node{tag = 'binop', 'exp1', 'op', 'exp2'}
----@TODO see whether isNodeEmpty is really necssary/helpful there.
-local nodeFoldBinop = Node(Node.isEmpty, 2, {1}, {2, {tag = 'binop', 'exp1'}})
-local nodeFoldBinopSuffix = Node{tag = 'binopSuffix', 'op', 'exp2'}
-local nodeUnaryop = Node{tag = 'unaryop', 'op', 'exp'}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = "unaryop", "op", "e"})
-
 --------------------------------------------------------------------------------
 --elementary patterns
 
@@ -139,21 +59,14 @@ end
 
 
 local locale = lpeg.locale()
---local function inc(x)
---    return x + 1
---end
-
---spaces
----@TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
----@TODO : use doo/doone/doon't for block comments ?
 
 local blockComment = "#{" * (P(1) - "#}")^0 * "#}"
 local lineComment = "#" * (P(1) - "\n")^0
 local comment = blockComment + lineComment
 local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
 ---@TODO put spaces inside the grammar
---local ws = V"ws"
---local ws = V"ws_"
+--local ws = V'ws'
+--local ws = V'ws_'
 local ws = newLine + locale.space + comment    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
@@ -166,6 +79,11 @@ end
 --local function Ts_(tokens)
 --    return S(tokens) * ws_
 --end
+
+---@TODO ponder whether they should be, empty statements, list of statements, etc. Probably still no.
+local semicolon_ = T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!")
+local semicolons_ = T_";"^0
+
 
 local function numeralCapture(digit, comma)
     return (digit^1 + digit^0 * comma * digit^1) -- ((comma+"")*-(digit+comma))
@@ -196,7 +114,11 @@ local alpha = locale.alpha
 --local alnum = alpha+digit
 local alnum = locale.alnum
 
----@TODO alleviate the need for reserved words (stil have special words)
+--spaces
+---@TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
+---@TODO : use doo/doone/doon't for block comments ? Answer : no, it's moronic and conflicts violently with getting rid of keywords, unless you go full functional curry, which I won't.
+
+---@TODO alleviate the need for reserved words (still have special words)
 local Rw_ = setmetatable({
     "return",
     "if",
@@ -229,7 +151,7 @@ end
 local ID = Cmt((alpha + '_') * (alnum + '_')^0, function (_, p, w)
     return rawget(Rw_, w) == nil, w
 end)
-local var = ID / Node{tag = "variable", "var"}
+local var = ID / Node{tag = 'variable', "var"}
 
 --------------------------------------------------------------------------------
 --elaborate patterns utils
@@ -260,41 +182,59 @@ local _parenNames = {
     ["["] = "bracket",
     ["{"] = "brace",
 }
+---@TODO also checks for extra closing ones ? (maybe not here).
 local function paren_ (op, patt, cl, pattName, bname)
     bname = bname or _parenNames[op]
     return T_(op) * patt * (T_(cl) + err(pattName .. ": missing closing " .. bname .. "."))
 end
-local _parenNames = {
-    ["("] = "parentheses",
-    ["["] = "brackets",
-    ["{"] = "braces",
-}
 
+--local brackExp_ = paren_("[", V'exp_',"]", "expression")
+--local parenExp_ = paren_("(", V'exp_',")", "expression")
 
-local brackExp_ = paren_("[", V'exp_',"]", "expression")
-local parenExp_ = paren_("(", V'exp_',")", "expression")
----@TODO make a function for parenthese, that maybe also checks for extra closing ones ?
-local ref_ = Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{tag = 'indexed', 'exp_ref', 'exp_index'})
+--- print. Because it is prefix, I'm not gonna put it in formula, so (@ = a) rather than @ =(a) is necessary to disambiguate.<br>
+--- Potentially allows for depth 1 shenanigans, where we print more than just the value.
+local ref_ = T_"@" / Node{tag = 'io'} +
+    Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{tag = 'indexed', 'ref', 'index'})
+
+--exp_.print_ = T_"@ =" * V'exp_' / Node{tag = 'print', "exp"}
+--exp_.read_ = T_"@" * V'ref_'^-1 / Node{tag = 'read', "ref"}
 
 ---@TODO : make every statement expression.
--- a list of constructs useable to build expression, from highest to lowest priority
-local exp_ = Stack{'exp_',
+-- a list of constructs useable to build expression, from highest to lowest priority.
+-- in my understanding, priority order is really only needed for pattern needing disambiguation, such as infix op pattern.
+local exp_ = Stack{'seqs_', --'exp_',
     ws_ = ws_,
     ref_ = ref_,
-    lhs_ = V'ref_',
-    numeral * V'ws_' + ref_ + paren_("(", V'exp_',")", "primary"), --primary
+    --an expressions or expression sequence delimited by parntheses
+    group_ = paren_("(", V'seqs_',")", "group"),
+    --primary, aka frst stage in formulas
+    numeral * V'ws_'
+    + ref_
+    + V'group_'
+    + V'if_'    --dubious here ?
+    + V'while_' --dubious here ?
+    --+ V'array_' + V'littArray_' --uncomment if you want to put arrays in formula, with some sort of operator overload presumably.
+    ,
 }
-
---array creation
----@TODO remove useless keyword or switch to manual memory management
---exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
---- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
----I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
-exp_:push(Cfr(Rw_"new" * paren_("[", V'exp_',"]", "new Array", "bracket")^1 * (T_"=" * V'exp_' + Cc(nil)),
-    Node{tag='new', 'exp_size', 'exp_default'}) + V(#exp_))
----litteral form
-exp_:push(paren_("{", V'exp_' * (T_"," * V'exp_')^0 + Cc(nil), "}", "litteral Array")
-    / Node{tag = 'new', [0] = 'values'} + V(#exp_))
+do
+    local _validLhs = {
+        io = true,
+        variable = true,
+        indexed = true,
+        assign = true,
+    }
+    exp_.lhs_ = Cmt(
+        V'ref_' --TODO add more
+        + V'group_',
+        function (_, _, lhs)
+            if _validLhs[lhs.tag] then
+                return true, lhs
+            else
+                return false, "Invalid Left hand side for assignement"  ---@TODO see whther and where it is possible to throw this error/warning
+            end
+        end
+    )
+end
 
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
@@ -305,16 +245,80 @@ exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * V'ws_', V(#exp_),
 exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
 exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
 exp_:push(infixOpCaptureRightAssoc(C"||" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
---BEWARE : + V(#exp_) must be at the end
----assignement
-exp_:push(V'lhs_' * T_"=" * V'exp_' / Node{tag = "assign", "lhs", "exp"}
-    + V(#exp_))
+exp_:push(infixOpCaptureRightAssoc(C"=>" * V'ws_', V(#exp_ + 1), V(#exp_), 'imply'))          --logical imply.
+--[[
+    Formulas are compounds of sticky subexpression, sticky meaning that they may stick to an other higher priority expresion.
+    Operator priority is mostly only a thing with infix operators.
+    Formula is the top level expression above expression formed above such subexpression.
+    ]]
+exp_.formula_ = V(#exp_)
 
-exp_.exp_ = V(#exp_)
---setmetatable(exp_, nil)
+--BEWARE, for assignement, + V(#exp_) must be at the end, because of greediness ?
+---assignement
+exp_.assign_ = V'lhs_' * T_"=" * V'exp_' / nodeAssign + V(#exp_)
+
+--array creation
+---@TODO add [2,3,4] for flat multidimensional arrays ?
+---@TODO remove useless keyword or switch to manual memory management
+--exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
+--- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
+---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
+exp_.array_ = Cfr(Rw_"new" * paren_("[", V'seqs1_',"]", "new Array", "bracket")^1 * (T_"=" * V'exp_' + Cc(nil)),
+    Node{tag='new', 'size', 'default'})
+---litteral Array
+exp_.littArray_ = paren_("{", V'seqs_', "}", "litteral Array")
+    / Node{tag = 'new', 'content'} -- [0] = 'values'}
+-----code block. For now, you have to 
+--exp_.block_ = paren_("{", V'rawList_', "}", "litteral Array")
+--    / Node{tag = 'new', 'content'} -- [0] = 'values'}
+
+local _errNoSC = err"BEWARE, you cannot separate condition, then and else with semi colon"
+--BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them clarify where the whole if stops though.
+exp_.if_ = Rw_"if" * V'exp_' * (T_";" * _errNoSC + 0) * V'exp_' *
+    ((T_";" * Rw_"else" * _errNoSC + Rw_"else") * V'exp_' *I'else')^-1 /
+    Node{tag = 'if', "cond", "then", "else"}
+exp_.while_ = Rw_"while" * V'exp_' * V'exp_' / Node{tag = 'while', 'cond', 'stat'}
+
+---@TODO remove
+exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = 'return', "exp"}
+--exp_.return_ = Rw_"return" * Cc(Node.empty)
+--exp_.break_ = Rw_"break" * (V'exp_' + Cc(nil)) / Node{tag = 'break', "exp"}
+---@TODO remove return
+--- using named pattern variable is not a necessity, here, it could have been a big sum, but it's better for organization, and it's more modular if I want to add only some patterns as LHS for example.
+---A pure atomic expression in the sense of expressing a single value (compares with sequences and lists)
+exp_. exp_ = (
+    V'assign_' --rather expensive to put first, 
+    + V'formula_' --contains parentheses group ok.
+    + V'array_' + V'littArray_'
+    -- if and while here are redundant with exp_[2] (first stage of formula), but they're dubious there and don't hurt here...
+    + V'if_'
+    + V'while_'
+--    + V'break_'
+    + V'return_'
+--    + V'break_'
+)
+
+--giving reasons to use ';' and parentheses ?
+local _listElement_ = V'seq_'   --V'exp_'
+--a comma separated list of at least 2 elements
+--exp_.rawList_ = _listElement_ * (T_"," * _listElement_)^1 * T_","^-1 /
+--    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'rawList', [0] = 'exps'}})
+
+-- Cc(nil) to escape the pesky full match being returned when no capture occurs (nil is part of the capture but forgotten upon filling the table)
+-- semicolon_can be used to break sequences, which doesn't do much, except with if and while blocks.
+---@TODO try ^0. Remove Cc(nil) if useless.
+exp_.seq_ = (V'exp_')^1 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
+---@TODO error handling. insert `+ _listElement_ * err""` in the middle ?
+--exp_.list_ = V'rawList_' / Node{tag = 'expList', 'list'} + _listElement_ * T_","^-1 + V'ws_' * Cc(Node.empty)
+exp_.list_ = _listElement_ * (T_"," * _listElement_)^0 * T_","^-1 /
+    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'list', [0] = 'exps'}})
+exp_.seqs_ = (V'list_' * (T_";" * V'list_')^0 * semicolon_ + Cc(nil)) /
+    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
+exp_.seqs1_ = V'list_' * (T_";" * V'list_')^0 * semicolon_ /
+    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
+
 exp_ = P(exp_)
 
----@TODO : use infixOpCaptureRightAssoc and modify nodeAssign so as to be able to chain assignement (C/C++/js/... style). Issue : emptying the stack if the value is not used
 ---@TODO : replace if with therefore. (after switching all statements to expressions). "therefore" is like "and" but with different prio yields the last truthy expression rather than the first falsy.
 ---@TODO  => is the purely logical, right associative, `imply` and is enough 
 local stats_ = {'stats',
@@ -322,9 +326,9 @@ local stats_ = {'stats',
     exp_ = exp_,
     ref_ = ref_,
     lhs_ = V'ref_',
-    stat_ = (V'block'
+    stat_ = --( V'block'
     ---@TODO put more sutff into lhs, such as `(a=b) = c` (meaning `a=b; a=c`) and `a < b = c` (meaning `if (a < b) {a = c} a` ). add !a = b and !!a = b ?
---        + V'lhs_' * T_"=" * V'exp_' / Node{tag = "stat_assign", "lhs", "exp"}
+--        + V'lhs_' * T_"=" * V'exp_' / Node{tag = 'stat_assign', "lhs", "exp"}
         ---@TODO : implement a ternary operator instead
         ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
         ---where (therefore|otherwise) is right associative.
@@ -336,28 +340,29 @@ local stats_ = {'stats',
         --- <exp> ?: <exp> (, <exp>)* 
         --- <exp> ?: <exp> (, <exp>)* ; 
         ---@TODO ponder whether you want to do things like exp * ws^1 * exp, and give it a lower priority than that I guess
-        + Rw_"if" * V'exp_' * V"stat_" * (Rw_"else" * V"stat_")^-1 / Node{tag = "if", "exp_cond", "stat_then", "stat_else"}
-        + Rw_"while" * V'exp_' * V"stat_" / Node{tag = "while", "exp_cond", "stat_"}
-        + T_"@" * V'exp_' / Node{tag = "print", "exp"}
-        + Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = "return", "exp"}
-        + V'exp_'
-        ) * T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
+        --+ Rw_"if" * V'exp_' * V'stat_' * (Rw_"else" * V'stat_')^-1 / Node{tag = 'if', "cond", "stat_then", "stat_else"}
+        --+ Rw_"while" * V'exp_' * V'stat_' / Node{tag = 'while', 'cond', 'stat'}
+        -- + T_"@ =" * V'exp_' / Node{tag = 'stat_print', "exp"}
+        --+ Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = 'return', "exp"}
+        --+ V'exp_' ) 
+        T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
     ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-    stats =  (V'stat_')^0 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = "seq", [0] = 'stats'}}),  -- Cc(nil) to escape the pesky full match being returned when no capture occurs. Nil is part of the capture but forgottent upon filling the table
+
+    stats =  (V'stat_')^0 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}}),  -- Cc(nil) to escape the pesky full match being returned when no capture occurs. Nil is part of the capture but forgotten upon filling the table
     block = T_"{" * V'stats' * (T_"}" + err"block: missing brace"),
 }
-stats_ = P(stats_)
+--stats_ = P(stats_)
 
 --------------------------------------------------------------------------------
 local successParsing = print
 
 local filePatt =
-    ws_ * (stats_ + exp_)
+    ws_ * (exp_)-- + stats_)
      * (-P(1) + err"file: syntax error.") --TODO better error msg
-     * (-P(successParsing) / 0)
+    -- * (-P(successParsing) / 0)
 ---@return AST
 local function parse (input)
-    return filePatt:match(input)
+    return assert(filePatt:match(input))
 end
 --------------------------------------------------------------------------------
 return parse

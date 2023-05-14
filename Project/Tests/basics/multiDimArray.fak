@@ -1,9 +1,0 @@
-a = new [9][3]      #declaring a multidimensional array
-@a
-##{
-@ new [2][2][2] = 8     #
-b = new [3][3] = 4
-@b
-c = new [5][0][3] = 12
-@c
-#}

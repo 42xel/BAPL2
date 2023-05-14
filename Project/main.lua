@@ -25,7 +25,9 @@ local run = require"interpreter"
 ---@TODO : add an interface of sort
 
 --------------------------------------------------------------------------------
-local input = io.read'a'
+local input = assert(assert(
+    io.open(assert(arg[1], arg[1] and 'r' or "\nUsage:\nlua main.lua myScript.fak"))
+):read'a')
 print(input)
 
 local ast = parse (input)
@@ -37,5 +39,7 @@ local code = compile((ast))
 print(pt(code))
 print()
 
+print(input)
+print()
 print(run(code))
 --------------------------------------------------------------------------------

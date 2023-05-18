@@ -12,7 +12,7 @@ do  --localising ArraySizes
             local r = setmetatable({--[[size = size or 0]]}, self)
             ArraySizes[r] = s
             return r
-        else--if type(s) == 'table' then
+        elseif type(s) == 'table' then
             ArraySizes[s] = #s
             return setmetatable(s, self)
         end
@@ -21,10 +21,17 @@ do  --localising ArraySizes
         return ArraySizes[self]
     end
 end
-function Array:__index(k)   --we won't do any inheritance with Array, so we don't need to put self.__index ) self in Array.new
-    assert(type(k) == 'number')
-    return '_'
-end
+---@REMARK we won't do any inheritance with Array, so we don't need to put self.__index ) self in Array.new
+---@TODO handle nil values.
+--function Array:__index(k)
+--    assert(type(k) == 'number')
+--    return '_'
+--end
+--function Array:__newindex(k, v)   --we won't do any inheritance with Array, so we don't need to put self.__newindex ) self in Array.new
+--    assert(type(k) == 'number' and 0 < k and k <= #self, ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, self, #self) )
+--    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
+--    rawset(self, k, v)
+--end
 ---@TODO ponder whether to use brackets or braces. I guess braces for now is best, brackets cuold be used either for splice or to designate an array corresponding to a contiguous segment of memory.
 do  --localising depth
     local depth = 0

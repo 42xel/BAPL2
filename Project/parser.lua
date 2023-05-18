@@ -263,7 +263,7 @@ exp_.assign_ = V'lhs_' * T_"=" * V'exp_' / nodeAssign + V(#exp_)
 --exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
 --- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
 ---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
-exp_.array_ = Cfr(Rw_"new" * paren_("[", V'seqs1_',"]", "new Array", "bracket")^1 * (T_"=" * V'exp_' + Cc(nil)),
+exp_.array_ = Cfr(Rw_"new" * paren_("[", V'seqs1_', "]", "new Array")^1 * (T_"=" * V'exp_' + Cc(nil)),
     Node{tag='new', 'size', 'default'})
 ---litteral Array
 exp_.littArray_ = paren_("{", V'seqs_', "}", "litteral Array")

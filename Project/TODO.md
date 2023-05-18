@@ -28,13 +28,15 @@ Let's call their result formula.
 
 # functions
 ## DONE
+- fix literal array assignement, most notably empty array assignements, which take the value previously on the stack as it shouldn't .
 ## TODO
+- add `...̀  which represent whatever is on the stack and use it to pass parameters, explicitely while chaining blocks, implicitely when using parentheses for functions calls.
+
 - think about order body, param, do you really wanna reverse ? I guess I don't. After all lhs needs to be exectued first.
 Issue is, it's harder to specify parameters processing inside the parametrization block.
 Not really an issue though, most languages are like that.
     - If anything, you can compose functions. (TODO examples)
     - Besides with more functional/promising shenanigans, post processing is probably possible still, something like `{ \To \Number a }` or whatever.
-
 - make functions : `id # = exp` : `id` is set to the function which yields `exp`. `id #` to call it. High prio. So no anonymous function ? not necessarilly. `(#= exp)` could be one syntax, remember, affectation also yields result.
 - syntax for parameters ? ideally, parameters are "just" codeblock concatenation with context fusion. `block1 \ block2`.
     - so make that codeblock fusion with context fusion.
@@ -56,6 +58,7 @@ Not really an issue though, most languages are like that.
     - some lighter syntax, like `*{2,3} --> 2,3` (inspired by C pointers syntax) ? I'm not a fan of overloading `*`to be honest.
     How about `¤` instead ?
 - varargs ?
+- `?` for curryfication ?
 
 # Object oriented programming
 ## DONE
@@ -86,6 +89,9 @@ Not really an issue though, most languages are like that.
 # Better error message
 ## DONE
 ## TODO
+- give warning when an expresion could be complete at the end of the line but actually continues on th next one.
+- give line number for dynamical error too
+    - store more metadata in the AST (and around the opCode).
 
 # Optimization
 ## DONE

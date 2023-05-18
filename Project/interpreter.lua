@@ -69,7 +69,7 @@ function Run:new(code, mem, run)
             push = function (stack, ...)
                 --shouldn't happen, if it does, it most likely is an error in the compiler
                 if not stack.validTypes[type(...)] then error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end ---@TODO : make it only number/pointers when rewriting the VM.
-                trace:push(#stack .. '  <-- ' .. concat({...}))
+                trace:push(#stack + select('#', ...) .. '  <-- ' .. concat({...}))
                 --trace:push(tostring(stack):gsub('[\n\t]', ' '))
                 rawpush(stack, ...)
             end
@@ -163,8 +163,14 @@ function Run:new(code, mem, run)
             new = function() stack.top = Array(stack.top) end,
             ---@diagnostic disable-next-line: param-type-mismatch
             c_new = function() local size = peek(stack) ; stack.top = Array(size) ; push(stack, size) end,
-            set = function() push(stack, set(pop(stack, 3))) end,
-            c_set = function() set(peek(stack, 3)) stack.len = #stack - 1 end,
+            set = function() local a, k, v = pop(stack, 3);
+                assert(type(k) == 'number' and 0 < k and k <= #a, ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, a, #a) )
+                --    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
+                push(stack, set(a, k, v)) end,
+            c_set = function() local a, k, v = peek(stack, 3);
+                assert(type(k) == 'number' and 0 < k and k <= #a, ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, a, #a) )
+                --    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
+                set(a, k, v) ; stack.len = #stack - 1 end,
             ---@TODO think of default value. is it nil, is it garbage ? do we keep it as an error ?
             get = function () assert(0 < stack.top and stack.top <= #stack[-1], "Array index out of range") ; push(stack, rawget(pop(stack, 2))) end,
             clean = function () stack:clean() end,

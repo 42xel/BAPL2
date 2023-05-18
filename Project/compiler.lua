@@ -201,7 +201,7 @@ function Compiler:newArray (ast)
             self:addCode(1)
             self:addCode'mod'
             local pInt = self:jmp('jmpop_Z')
-            self:addCode'error_array_size'  ---@TODO (after opCode made fully number) do something cleaner than an unknown instruction error.
+            self:addCode'error_array_size'  ---@TODO (after opCode made fully number) do something cleaner than an unknown instruction error. Also clean the stack, you never know when you'll need a protected mode.
             --testing whether size >= 0
             pInt:honor(#self.code)
             self:addCode'dup'
@@ -212,6 +212,7 @@ function Compiler:newArray (ast)
 
             --main loop
             local pLoop = Promise:honored(#self.code)
+            self:addCode'up'
             self:subCodeGen(ast, 'default') ---@TODO (after functions and register machine) : fill the array from the bottom up rather than top to bottom.
             self:addCode'c_set'
             self:addCode'push'
@@ -222,6 +223,7 @@ function Compiler:newArray (ast)
         end
         self:addCode'pop'    --popping the index at the end of the loop, to leave the array at the top of the stack
     else    --defined with a literral
+        self:addCode'clean'
         self:subCodeGen(ast, 'content')
         self:addCode'pack'
     end
@@ -241,8 +243,8 @@ function metaCompiler:new(r)
     if rawget(self, '__call') == nil then
         ---@param self Compiler
         function self:__call(ast)
-            self:addCode("write")
-            self:addCode(0)
+            --self:addCode("write")
+            --self:addCode(0)
             self:codeGen(ast)
             self:addCode("ret")
             return self.code

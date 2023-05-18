@@ -348,6 +348,10 @@ function metaCompiler:new(r)
             subCodeGen(state, ast, 'lhs')
             codeGen(state, nodeAssign(ast.lhs.lhs, ast.exp))
         end,
+
+        --TODO group and list
+
+        fun = "",
     }
     local switch_assign = r.switch_assign
 

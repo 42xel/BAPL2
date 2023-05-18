@@ -1,2 +1,2 @@
 if 2 @ = 3; else 4
-#errors because of the semi colon
+'errors because of the semi colon

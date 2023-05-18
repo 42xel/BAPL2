@@ -1,4 +1,4 @@
 a,b = 2 ^ (3,4) * (5 + 6)
-#as of writing this, the 5 should erase the 4 and be read, in an unintuitive and trash way, by b.
+'as of writing this, the 5 should erase the 4 and be read, in an unintuitive and trash way, by b.
 @a
 @b

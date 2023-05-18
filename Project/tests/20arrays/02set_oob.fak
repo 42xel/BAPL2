@@ -1,4 +1,4 @@
 a = new [5]
 a[6] = 7
 @ = a
-#error : index out of bound
+'error : index out of bound

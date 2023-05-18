@@ -60,8 +60,8 @@ end
 
 local locale = lpeg.locale()
 
-local blockComment = "#{" * (P(1) - "#}")^0 * "#}"
-local lineComment = "#" * (P(1) - "\n")^0
+local blockComment = "'{" * (P(1) - "'}")^0 * "'}"
+local lineComment = "'" * (P(1) - "\n")^0
 local comment = blockComment + lineComment
 local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
 ---@TODO put spaces inside the grammar

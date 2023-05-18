@@ -3,6 +3,6 @@ while a > 1 {
     @ =a
     if a%2
         a = a * 3 + 1
-    a = a / 2   #the somewhat reduced syracuse sequence
+    a = a / 2   'the somewhat reduced syracuse sequence
 }
 @ = a

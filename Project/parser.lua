@@ -13,7 +13,7 @@ local nodeBinop = Node.nodeBinop
 local nodeFoldBinop = Node.nodeFoldBinop
 local nodeFoldBinopSuffix = Node.nodeFoldBinopSuffix
 local nodeUnaryop = Node.nodeUnaryop
-local nodeAssign = Node{tag = 'assign', "lhs", "exp"}
+local nodeAssign = Node.nodeAssign
 
 require "utils"
 
@@ -190,7 +190,7 @@ TODO : add  chaining `#` syntax. As lhs :
 `a## = exp` is equivalent to `a # = (#= exp)`<br>
 As rhs : `a##` is equivalent to `(a#)#` (should be free ?)
 ]]
-local fun_ = Cf(V'indexed_' * T_(C"#")^0, Node{tag = "fun", "ref"})  --function calls
+local fun_ = Cf(V'indexed_' * T_(C"#")^1, Node{tag = "fun", "ref"})  --function calls
 
 ---@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority.
@@ -226,8 +226,8 @@ end
 --primary, aka frst stage in formulas
 exp_:push(
     numeral * V'ws_'
-    + ref_
     + V'fun_'
+    + ref_
     + V'group_'
     + V'if_'    --dubious here ?
     + V'while_' --dubious here ?
@@ -268,7 +268,7 @@ exp_.littArray_ = paren_("{", V'seqs_', "}", "litteral Array")
 --exp_.block_ = paren_("{", V'rawList_', "}", "litteral Array")
 --    / Node{tag = 'new', 'content'} -- [0] = 'values'}
 
-local _errNoSC = err"BEWARE, you cannot separate condition, then and else with semi colon"
+local _errNoSC = err"BEWARE, you cannot separate condition, then and else with semi-colon"
 --BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them clarify where the whole if stops though.
 exp_.if_ = Rw_"if" * V'assign_' * (T_";" * _errNoSC + 0) * V'assign_' *
     ((T_";" * Rw_"else" * _errNoSC + Rw_"else") * V'assign_' *I'else')^-1 /
@@ -282,7 +282,7 @@ exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = 'return', "exp"}
 ---@TODO remove return
 --- using named pattern variable is not a necessity, here, it could have been a big sum, but it's better for organization, and it's more modular if I want to add only some patterns as LHS for example.
 ---A pure atomic expression in the sense of expressing a single value (compares with sequences and lists)
-exp_. exp_ = ( false
+exp_. exp_ = (false
     + V'formula_' --contains parentheses group ok.
     + V'array_' + V'littArray_'
     -- if and while here are redundant with exp_[2] (first stage of formula), but they're dubious there and don't hurt here...
@@ -327,11 +327,11 @@ do
         assign = true,
         fun = true,
     }
-    exp_.lhs_ = Cmt(
-        V'ref_' --TODO add more
+    exp_.lhs_ = Cmt(false
+        + fun_
+        + V'ref_' --TODO add more
 --        + V'group_'
 --        + V'list_'
---        + fun_
         ,
         function (_, _, lhs)
             if _validLhs[lhs.tag] then
@@ -342,7 +342,7 @@ do
         end
     )
 end
-exp_:push(V'lhs_' * T_"=" * V(#exp_) / nodeAssign + V(#exp_))
+exp_:push(V'lhs_' * T_"=" * V(#exp_ + 1) / nodeAssign + V(#exp_))
 exp_.assign_ = V(#exp_)
 ---a juxtaposed sequence of lists and assignements
 exp_:push(seq(V(#exp_), nil, true))

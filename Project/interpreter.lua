@@ -32,6 +32,7 @@ local Cmt = lpeg.Cmt
 ---@field code (number|string)[]
 ---@field mem table
 ---@field stack IntStack
+---@field switch fun():boolean?
 local Run = {
     ---@TODO on the lua discussion boards, see why concat doesn't use tostring and __tostring and argue/code in favor of it.
     concat = function (t, sep, i, j)
@@ -44,14 +45,23 @@ local Run = {
             end})), sep)
     end
 }
-function Run:new(code, mem, run)
+function Run:new(code, run)
     run = run or {}
     run.code = code or run.code or self.code or {}
     code = run.code
-    run.mem = mem or run.mem or self.mem or {}
-    mem = run.mem
-    run.stack = run.stack or IntStack:new()
+    run.mem = run.mem or self.mem or {}
+    local mem = run.mem
+    ---@TODO store position as well ? A priori, everything relevant is in the oject stack
+    run.stack = run.stack or self.stack or IntStack:new()
     run.trace = run.trace or Stack() --and nil
+
+    function self:__call(code, run)
+        print("Run:new()", pt(code), run)
+        
+        --print("run.__call()", pt(code), run)
+        run = self:new(code, run)
+        return run:run()
+    end
 
     do  --putting the most used stuff in local variable for efficiency (going through the inheritance chain only once)
         --the do end block is unecessary, but useful if I ever want to put that piece of code out of the new.
@@ -60,6 +70,8 @@ function Run:new(code, mem, run)
         local trace = run.trace
         local concat = self.concat
         local stack = run.stack
+        local pStack0 = #stack
+        assert(0<pStack0, "stack length can't be non positive")
 
         local push, write, pop, peek = stack.push, stack.write, stack.pop, stack.peek
         if trace then
@@ -90,7 +102,7 @@ function Run:new(code, mem, run)
                 from stack %s]]):format(tonumber(pc), n, pt(stack)))
                 trace:push(#stack .. '  --> ' .. concat(stack, nil, #stack - n + 1))
                 --trace:push(pt(stack):gsub('[\n\t]', ' ') .. '')
-                
+
                 return rawpop(stack, n)
             end
             peek = function (stack, n) n = tonumber(n)
@@ -105,8 +117,9 @@ function Run:new(code, mem, run)
         end
 
         ---@TODO use meta programming to avoid code repetition ?
+        ---@TODO use some sort of inheritance to reduce memory ? It increases time because it'd no longer use local, but copying all the below at each fns call seems much more wasteful.
         ---I don't know, with Ultra editing, contiguous one liner code repetition is painless and harmless, and meta programming doesn't help when using lua-language-server
-        Run.switch = {
+        run.switch = {
             --basic
             push  = function() pc = pc+1 ; push(stack, code[pc]) end,
             write = function() pc = pc+1 ; write(stack, code[pc]) end,
@@ -118,8 +131,9 @@ function Run:new(code, mem, run)
             load  = function() pc = pc+1 ; write(stack, mem[code[pc]]) end,
             store = function() pc = pc+1 ; mem[code[pc]] = peek(stack) end,
             print = function() print("@ = ", peek(stack)) end,
-            read = function() print"@ " ; write(stack, io.stdin:read('n')) end,
-            ret   = function() return assert(#stack == 1, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack) end,
+            read  = function() print"@ " ; write(stack, io.stdin:read('n')) end,
+            ret   = function() return assert(#stack == pStack0, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack .. "\t pStack0:\t" .. pStack0) end,
+            call  = function() print("call0", run.code, pc) ; run(stack.top); print("call1", run.code, pc) ; return true end,
             --control structures
             jmp     = function() pc = pc + 1 ;                          pc = pc + code[pc]     end,
             jmp_Z   = function() pc = pc + 1 ; if peek(stack) == 0 then pc = pc + code[pc] end end,
@@ -176,11 +190,11 @@ function Run:new(code, mem, run)
             clean = function () stack:clean() end,
             pack = function () stack:pack() end,
         }
-        setmetatable(Run.switch, {__index = function()
+        setmetatable(run.switch, {__index = function()
                 print(trace and trace:unpack())
                 --should not be happening, if it does, there most likely is an error in the compiler.
                 ---@TODO output in stderr. for now I use stdout for readibility, because apparently I have no control on how stdout and stderr will mix on the terminal output.
-                io.stdout:write("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc) .. "\n")   --lpeg match catches errors I think
+                io.stdout:write("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc) .. " of code:\t" .. pt(code) .. "\n")   --lpeg match catches errors I think
                 os.exit(false)
             end,
             __call = trace and function (self)
@@ -198,13 +212,17 @@ function Run:new(code, mem, run)
     return setmetatable(run, self)
 end
 function Run:run()
+    print"bla"
     repeat until self.switch()
-    return self.stack.top
+    print"bla"
+    local r =  self.stack.top
+    print"bla"
+    return r
 end
-setmetatable(Run, {__call = function (self, code, mem, run)
-    run = Run:new(code, mem, run)
-    return run:run()
-end})
+--setmetatable(Run, {__call = function (self, code, run)
+--    run = Run:new(code, run)
+--    return run:run()
+--end})
 --------------------------------------------------------------------------------
 
-return Run
+return Run:new()

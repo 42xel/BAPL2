@@ -212,11 +212,8 @@ function Run:new(code, run)
     return setmetatable(run, self)
 end
 function Run:run()
-    print"bla"
     repeat until self.switch()
-    print"bla"
     local r =  self.stack.top
-    print"bla"
     return r
 end
 --setmetatable(Run, {__call = function (self, code, run)

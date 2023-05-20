@@ -9,6 +9,8 @@ double  quotes " " are used for strings which appear verbatim (in filename, sour
 ]]
 _README = nil
 
+_INTERPRETER_DEBUG = false
+--_INTERPRETER_DEBUG = true
 --------------------------------------------------------------------------------
 package.path = "./lib/?.lua;" .. "./lib/?/init.lua;" .. package.path
 

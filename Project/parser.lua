@@ -235,7 +235,7 @@ exp_:push(
 )
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
-exp_:push(infixOpCapture(C(S"*/%") * V'ws_', V(#exp_))) --multiplication
+exp_:push(infixOpCapture(C("//" + S"*/%") * V'ws_', V(#exp_))) --multiplication
 exp_:push(infixOpCapture(C(S"+-") * V'ws_', V(#exp_))) --addition
 ---comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses makes sense.
 exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * V'ws_', V(#exp_), 'compChain')) --comparison

@@ -20,6 +20,7 @@ local nodeAssign = Node.nodeAssign
 --local utils =
  require "utils"
 local Promise = require "Promise"
+--local Proxy = require "Proxy"
 
 --local parse = require "parser"
 
@@ -48,7 +49,7 @@ local Cmt = lpeg.Cmt
 ---@field vars table A biderectional table of variable names and their numerical index in the memory
 ---@field switch lpegSwitch The main switch. Recursively compiles the ast, depending on their tag, and returns the current compiler and AST for ease of chaining
 ----@field zoo table a florilege of functions use to handle varaibles
-----@field new fun (self:Compiler, t?:table) : Compiler
+---@field new fun (self:Compiler, t?:table) : Compiler
 local Compiler = {}
 
 --[[
@@ -84,11 +85,13 @@ Compiler.codeOP = {
         ['-'] = 'sub',
         ['*'] = 'mul',
         ['/'] = 'div',
+        ['//'] = 'idiv',
         ['%'] = 'mod',
         ['^'] = 'pow',
 
         ['&&'] = 'and',
         ['||'] = 'or',
+        ['=>'] = 'imply',
     },
     c = {
         ['<'] = 'c_lt',
@@ -115,12 +118,14 @@ function Compiler:invalidAst(ast)
     return self, ast
 end
 function Compiler:getVariable(ast)
-    return self:addCode(assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast)))
+    ---@TODO maybe remove the wrning, because of functions ?
+    return self:addCode(self.vars[ast.var])
+--    return self:addCode(assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast)))
 -- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
 -- Upon rework of addCode, I had an issue with redundant parameter, given I no longer needed AST.
 -- Best practice is to disable as little as possile, and splitting lines is a great idea for that.
 ---@diagnostic disable-next-line: redundant-parameter
-    , nil )
+--    , nil )
 end
 
 --[[
@@ -243,8 +248,6 @@ function metaCompiler:new(r)
     if rawget(self, '__call') == nil then
         ---@param self Compiler
         function self:__call(ast)
-            --self:addCode("write")
-            --self:addCode(0)
             self:codeGen(ast)
             self:addCode("ret")
             return self.code
@@ -254,12 +257,14 @@ function metaCompiler:new(r)
     --initializing data
     r = r or {}
     r.code = r.code or Stack{}
-    do
-        local varsn = Symbol'varsn'
+    r.vars = r.vars or self.vars
+    if not r.vars then
+        print"blabla"
+        local varsn = Symbol['varsn']
         r.vars = setmetatable({[varsn] = 1},{
             __index = function(vars, key)
                 vars[key] = vars[varsn]
-                vars[vars[varsn] ] = key
+--                vars[vars[varsn] ] = key
                 vars[varsn] = vars[varsn] + 1
                 return vars[key]
             end,
@@ -289,7 +294,7 @@ function metaCompiler:new(r)
     ---@see Compiler.c_addCode
     function (compiler, ast, opCode)
         local t = type(opCode)
-        assert(t == 'number' or t == 'string', "addCode : trying to push code other than number:\t" .. pt(t))
+        assert(t == 'number' or t == 'string' or t == 'table', "addCode : trying to push code other than number or a function pointer:\t" .. pt(t))
         compiler:addCode(opCode)
         return compiler, ast
     end or r.c_addCode
@@ -323,6 +328,7 @@ function metaCompiler:new(r)
     r.switch_assign = r.switch_assign or lpeg.Switch{
         ---@TODO rename global ? issue with scopes and overload. Ideally, lhs processed before rhs.
         variable = Cargs(2) * Cc'exp' / subCodeGen * Cc'store' / c_addCode / function(state, ast)
+            state.vars[state.vars[ast.lhs.var]] = ast.lhs.var ;
             addCode(state, state.vars[ast.lhs.var]) end * Cargs(2),
         --[[
         I feel it's important to compile the lhs before the expression to assign.
@@ -335,7 +341,7 @@ function metaCompiler:new(r)
         ]]
         indexed = Cargs(2) / function (state, ast)
             ---@TODO For much later : think about binding or trick like lua's obj:method, and how to make sort of currification, so that it's not just for the last field.
-            subCodeGen(state, ast.lhs, 'ref') ---@TODO (done already?) thinkabout fields, arrays of arrays...
+            subCodeGen(state, ast.lhs, 'ref') ---@TODO (done already?) think about fields, arrays of arrays...
             addCode(state, 'up')
             subCodeGen(state, ast.lhs, 'index')
             addCode(state, 'up')
@@ -346,12 +352,15 @@ function metaCompiler:new(r)
         io = Cargs(2) * Cc'exp' / subCodeGen * Cc'print' / c_addCode,
         assign = Cargs(2) / function (state, ast)
             subCodeGen(state, ast, 'lhs')
-            codeGen(state, nodeAssign(ast.lhs.lhs, ast.exp))
+            return codeGen(state, nodeAssign(ast.lhs.lhs, ast.exp))
         end,
-
         --TODO group and list
 
-        fun = "",
+        fun = Cargs(2) / function (state, ast)
+            codeGen(state, nodeAssign(ast.lhs.ref, Node.nodeNum(r:new()(ast.exp)) ))
+
+        end * Cargs(2),
+        [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
     }
     local switch_assign = r.switch_assign
 
@@ -362,13 +371,14 @@ function metaCompiler:new(r)
     ---@TODO depreciate state_X
     ---@remark : the switch is put in the new so as to have local functions (addCode, etc.) as well as for inheritance I guess
     r.switch = r.switch or lpeg.Switch{
+        ---@TODO depending on how floats are treated, revisit.
         void = lpeg.P(true),
         number = Cargs(2) * Cc'write' / c_addCode * Cc'val' / addCodeField,
         variable = Cargs(2) * Cc'load' / c_addCode / getVariable,
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
-        ---@TODO depending on how floats are treated, revisit.
-        --I should be able to write it higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
+        fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
+        --I should be able to write newarray higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
         new = Cargs(2) / newArray,
         Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
         unaryop = Cargs(2) * Cc'exp' / subCodeGen / codeOP.u / c_addCode,
@@ -459,6 +469,19 @@ function metaCompiler:new(r)
 
     return r
 end
+
+---The top level __call metamethod also has a check for global variables which are used whitout being ever initialized
+function metaCompiler:__call(ast)
+    self:codeGen(ast)
+    self:addCode("ret")
+    for k, v in pairs(self.vars) do
+        if type(k) == 'string' and self.vars[v] ~= k then
+            print(("Warning, global variable `%s` is used but never initialized"):format(k))
+        end
+    end
+    return self.code
+end
+
 metaCompiler:new(Compiler)
 
 --------------------------------------------------------------------------------

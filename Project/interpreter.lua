@@ -28,6 +28,10 @@ local Cmt = lpeg.Cmt
 ---@TODO : use a register machine for more expressiveness, notably giving the option to implement your left/right/logical-value idea on the dynamic level.
 ---@TODO : trace with different level of precision and detail : opCodeLine   codeLine   corresponding code
 --------------------------------------------------------------------------------
+if _INTERPRETER_DEBUG == nil then
+    _INTERPRETER_DEBUG = true
+end
+
 ---@class Run
 ---@field code (number|string)[]
 ---@field mem table
@@ -55,10 +59,7 @@ function Run:new(code, run)
     run.stack = run.stack or self.stack or IntStack:new()
     run.trace = run.trace or Stack() --and nil
 
-    function self:__call(code, run)
-        print("Run:new()", pt(code), run)
-        
-        --print("run.__call()", pt(code), run)
+    function self:__call(code, run)        
         run = self:new(code, run)
         return run:run()
     end
@@ -133,7 +134,7 @@ function Run:new(code, run)
             print = function() print("@ = ", peek(stack)) end,
             read  = function() print"@ " ; write(stack, io.stdin:read('n')) end,
             ret   = function() return assert(#stack == pStack0, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack .. "\t pStack0:\t" .. pStack0) end,
-            call  = function() print("call0", run.code, pc) ; run(stack.top); print("call1", run.code, pc) ; return true end,
+            call  = function() run(stack.top) end,
             --control structures
             jmp     = function() pc = pc + 1 ;                          pc = pc + code[pc]     end,
             jmp_Z   = function() pc = pc + 1 ; if peek(stack) == 0 then pc = pc + code[pc] end end,
@@ -145,6 +146,7 @@ function Run:new(code, run)
             sub = function() write(stack, stack[-1] - pop(stack)) end,
             mul = function() write(stack, stack[-1] * pop(stack)) end,
             div = function() write(stack, stack[-1] / pop(stack)) end,
+            idiv= function() write(stack, stack[-1] //pop(stack)) end,
             mod = function() write(stack, stack[-1] % pop(stack)) end,
             pow = function() write(stack, stack[-1] ^ pop(stack)) end,
 --        ["and"] = function() if stack[-1] == 0 then stack.top = pop(stack) else stack.len = #stack - 1 end end,
@@ -199,7 +201,7 @@ function Run:new(code, run)
             end,
             __call = trace and function (self)
                 pc = pc + 1
-                print(trace:unpack())
+                if _INTERPRETER_DEBUG then  print(trace:unpack()) end ---@TODO make better
                 trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
                 return self[code[pc]]()
             end or function (self)

@@ -1,0 +1,12 @@
+SUCCESS = 0
+
+n = @
+Syracuse # = (
+    'prints n and if it is 1 stops
+    ((@ = n) == 1 => SUCCESS)
+    'elseif n is even, multiply it by 3, add 1 and call Syracuse
+    => ( n % 2 => (n = 3 * n + 1) => Syracuse # )
+    'else half n and call Syracuse
+    => ( (n = n // 2) => Syracuse # ) );
+
+Syracuse #

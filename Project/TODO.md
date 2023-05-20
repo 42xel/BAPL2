@@ -29,8 +29,8 @@ Let's call their result formula.
 # functions
 ## DONE
 - fix literal array assignement, most notably empty array assignements, which take the value previously on the stack as it shouldn't .
-## TODO
-- add `...̀  which represent whatever is on the stack and use it to pass parameters, explicitely while chaining blocks, implicitely when using parentheses for functions calls.
+- check recursion
+- Add forward declaration for globals (using promises)
 
 - think about order body, param, do you really wanna reverse ? I guess I don't. After all lhs needs to be exectued first.
 Issue is, it's harder to specify parameters processing inside the parametrization block.
@@ -38,6 +38,9 @@ Not really an issue though, most languages are like that.
     - If anything, you can compose functions. (TODO examples)
     - Besides with more functional/promising shenanigans, post processing is probably possible still, something like `{ \To \Number a }` or whatever.
 - make functions : `id # = exp` : `id` is set to the function which yields `exp`. `id #` to call it. High prio. So no anonymous function ? not necessarilly. `(#= exp)` could be one syntax, remember, affectation also yields result.
+## TODO
+
+- add `...̀  which represent whatever is on the stack and use it to pass parameters, explicitely while chaining blocks, implicitely when using parentheses for functions calls.
 - syntax for parameters ? ideally, parameters are "just" codeblock concatenation with context fusion. `block1 \ block2`.
     - so make that codeblock fusion with context fusion.
     - what if `exp` in `id # = exp` is not a block, just an expression ?
@@ -58,7 +61,13 @@ Not really an issue though, most languages are like that.
     - some lighter syntax, like `*{2,3} --> 2,3` (inspired by C pointers syntax) ? I'm not a fan of overloading `*`to be honest.
     How about `¤` instead ?
 - varargs ?
+- anonymous functions and expression functions ? For now, one can only call a function stored (in a variable or an array).
+    - The compiler is completely ready for it already, you jsut need the parser.
+    - You probably want some dynamic type check to not call non functions (that's useful even before considering anonymous functions).
 - `?` for curryfication ?
+- flatten the code and use only gotos ? there are pros and con, but mostly no.
+    - With flatten, I'd have to handle the callstack entirely myself. That's something I wat I guess, but also, no.
+- think about tail recursivity.
 
 # Object oriented programming
 ## DONE

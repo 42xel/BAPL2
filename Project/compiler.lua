@@ -42,11 +42,14 @@ local Ct = lpeg.Ct
 local Cmt = lpeg.Cmt
 
 --------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
 ---@TODO (low prio) legible code for debug mode.
 
 ---@class Compiler : table
 ---@field code Stack
----@field vars table A biderectional table of variable names and their numerical index in the memory
+---@field vars table A table of variable names and their absolute numerical index for reference.
+---@field ctx table A table of variable names and their numerical index in the local memory, as well as correspondance to their absolute global reference.
 ---@field switch lpegSwitch The main switch. Recursively compiles the ast, depending on their tag, and returns the current compiler and AST for ease of chaining
 ----@field zoo table a florilege of functions use to handle varaibles
 ---@field new fun (self:Compiler, t?:table) : Compiler
@@ -117,15 +120,26 @@ function Compiler:invalidAst(ast)
     error("invalid ast : " .. pt(ast), 2)
     return self, ast
 end
+---@TODO maybe remove the warning, because of functions ?
 function Compiler:getVariable(ast)
-    ---@TODO maybe remove the wrning, because of functions ?
-    return self:addCode(self.vars[ast.var])
+    local ctx = self.ctx
+    if not ast.prefix then
+        ast.prefix = 0
+    end
+    for i = 1, ast.prefix do
+        ctx = ctx.parent
+    end
+    while not ctx[ast.var] do
+        ast.prefix = ast.prefix + 1
+        ctx = ctx.parent
+        if not ctx then --not found : global (easier than to redo all the tests to require declaration ?)
+            ast.prefix = - 1
+            break
+        end
+    end
+    self:addCode(ast.prefix)
+    return self:addCode(-ctx[ast.var])
 --    return self:addCode(assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast)))
--- BEWARE : assert returns all of its args upon success. Here, the function addCode takes care of ignoring the error msg. Otherwise, assert(...), nil would be useful
--- Upon rework of addCode, I had an issue with redundant parameter, given I no longer needed AST.
--- Best practice is to disable as little as possile, and splitting lines is a great idea for that.
----@diagnostic disable-next-line: redundant-parameter
---    , nil )
 end
 
 --[[
@@ -196,43 +210,50 @@ function Compiler:Imply(ast)
 end
 
 function Compiler:newArray (ast)
-    if ast.size then    --defined using size
-        self:subCodeGen(ast, 'size')
-        self:addCode'c_new'
-        if ast.default then
-            --testing whether the size is an integer
-            self:addCode'dup'
-            self:addCode'push'
-            self:addCode(1)
-            self:addCode'mod'
-            local pInt = self:jmp('jmpop_Z')
-            self:addCode'error_array_size'  ---@TODO (after opCode made fully number) do something cleaner than an unknown instruction error. Also clean the stack, you never know when you'll need a protected mode.
-            --testing whether size >= 0
-            pInt:honor(#self.code)
-            self:addCode'dup'
-            self:addCode'push'
-            self:addCode(0)
-            self:addCode'gt'
-            local pEnd = self:jmp('jmpop_Z')
+    self:subCodeGen(ast, 'size')
+    self:addCode'c_new'
+    if ast.default then
+        --testing whether the size is an integer
+        self:addCode'dup'
+        self:addCode'push'
+        self:addCode(1)
+        self:addCode'mod'
+        local pInt = self:jmp('jmpop_Z')
+        self:addCode'error_array_size'  ---@TODO (after opCode made fully number) do something cleaner than an unknown instruction error. Also clean the stack, you never know when you'll need a protected mode.
+        --testing whether size >= 0
+        pInt:honor(#self.code)
+        self:addCode'dup'
+        self:addCode'push'
+        self:addCode(0)
+        self:addCode'gt'
+        local pEnd = self:jmp('jmpop_Z')
 
-            --main loop
-            local pLoop = Promise:honored(#self.code)
-            self:addCode'up'
-            self:subCodeGen(ast, 'default') ---@TODO (after functions and register machine) : fill the array from the bottom up rather than top to bottom.
-            self:addCode'c_set'
-            self:addCode'push'
-            self:addCode(1)
-            self:addCode'sub'
-            self:jmp('jmp_NZ', pLoop)
-            pEnd:honor(#self.code)
-        end
-        self:addCode'pop'    --popping the index at the end of the loop, to leave the array at the top of the stack
-    else    --defined with a literral
-        self:addCode'clean'
-        self:subCodeGen(ast, 'content')
-        self:addCode'pack'
+        --main loop
+        local pLoop = Promise:honored(#self.code)
+        self:addCode'up'
+        self:subCodeGen(ast, 'default') ---@TODO (after functions and register machine) : fill the array from the bottom up rather than top to bottom.
+        self:addCode'c_set'
+        self:addCode'push'
+        self:addCode(1)
+        self:addCode'sub'
+        self:jmp('jmp_NZ', pLoop)
+        pEnd:honor(#self.code)
     end
+    self:addCode'pop'    --popping the index at the end of the loop, to leave the array at the top of the stack
     return self, ast
+end
+
+
+---@return Promise pSize a promise to resolve to the mem size of the bloc (the number of local variables)
+function Compiler:blockSize(pSize)
+    pSize = pSize or Promise:new()
+    self:addCode'block'
+    self:addCode(0)
+    local pc = #self.code   --saving the current position
+    pSize:zen(function (v)
+        self.code[pc] = v
+    end)
+    return pSize
 end
 
 --The compiler metatable. contains the metamethods as welle as method related to creation
@@ -249,17 +270,16 @@ function metaCompiler:new(r)
         ---@param self Compiler
         function self:__call(ast)
             self:codeGen(ast)
-            self:addCode("ret")
             return self.code
         end
     end
-
     --initializing data
     r = r or {}
     r.code = r.code or Stack{}
+
+--[[old vars
     r.vars = r.vars or self.vars
     if not r.vars then
-        print"blabla"
         local varsn = Symbol['varsn']
         r.vars = setmetatable({[varsn] = 1},{
             __index = function(vars, key)
@@ -270,13 +290,53 @@ function metaCompiler:new(r)
             end,
         })
     end
---    --A  table of labels and their numerical position
---    labels = setmetatable({},{
-    --        __index = function (self, key)
-    --            self[key] = Promise:new()
-    --            return self[key]
-    --        end,
-    --    })
+    --A  table of labels and their numerical position
+    labels = setmetatable({},{
+        __index = function (self, key)
+            self[key] = Promise:new()
+            return self[key]
+        end,
+    })
+]]
+
+    ---a dictionnary of all variable ids
+    ---``` {[name : string] = nameID : number} ```
+    r.vars = r.vars or self.vars
+    if not r.vars then
+        local varsn = Symbol['varsn']
+        r.vars = setmetatable({[varsn] = 1},{
+            __index = function(vars, key)
+                vars[key] = vars[varsn]
+    --                vars[vars[varsn] ] = key
+                vars[varsn] = vars[varsn] + 1
+                return vars[key]
+            end,
+        })
+    end
+    local Cmpctx = {}
+    do
+        local cmp = self
+        local varsn = Symbol['varsn']
+        function Cmpctx:__index (key)
+            self[key] = self[varsn]
+            self[self[varsn] ] = r.vars[key]
+            self[varsn] = self[varsn] + 1
+            return self[key]
+        end
+        function Cmpctx:new (t, parent)
+            t = t or {}
+            t [varsn] = 1
+            t.parent = parent or cmp.ctx
+            return setmetatable(t, self)
+        end
+        function Cmpctx:__len() --should be the same as rawlen,
+            return self[varsn]
+        end
+    end
+
+    if not r.ctx then
+        r.ctx = Cmpctx:new()
+    end
 
     --initializing the main switch
     setmetatable(r, self)
@@ -320,6 +380,7 @@ function metaCompiler:new(r)
     local newArray = r.newArray
 
     ---expands an assignement, depending on its left hand side's tag.
+    ---@TODO split eval of RHS and assignement ; make eval of RHS always happen first.
     ---@type fun(lhs_tag : string, state : Compiler, ast : table): Compiler, table
     --[[@TODO see if you want to keep variables as a disinct lhs from indexed.<br>
     Probably yes, because they can be loaded into a static region of memory and more easily accessed.<br>
@@ -328,8 +389,10 @@ function metaCompiler:new(r)
     r.switch_assign = r.switch_assign or lpeg.Switch{
         ---@TODO rename global ? issue with scopes and overload. Ideally, lhs processed before rhs.
         variable = Cargs(2) * Cc'exp' / subCodeGen * Cc'store' / c_addCode / function(state, ast)
-            state.vars[state.vars[ast.lhs.var]] = ast.lhs.var ;
-            addCode(state, state.vars[ast.lhs.var]) end * Cargs(2),
+            --state.vars[state.vars[ast.lhs.var]] = ast.lhs.var ; --mark the variable as having an initializer
+            --addCode(state, state.vars[ast.lhs.var]) 
+            getVariable(state, ast.lhs)
+        end * Cargs(2),
         --[[
         I feel it's important to compile the lhs before the expression to assign.
         I'm pretty sure JS and C++ have different stances on it (don't remember which, and they did not always have one), which can been tested by putting border effects.
@@ -358,7 +421,6 @@ function metaCompiler:new(r)
 
         fun = Cargs(2) / function (state, ast)
             codeGen(state, nodeAssign(ast.lhs.ref, Node.nodeNum(r:new()(ast.exp)) ))
-
         end * Cargs(2),
         [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
     }
@@ -380,7 +442,18 @@ function metaCompiler:new(r)
         fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
         --I should be able to write newarray higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
         new = Cargs(2) / newArray,
-        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
+--        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
+        ---@param state Compiler
+        block = Cargs(2) / function (state, ast)
+            ---@TODO change r.ctx then set it back
+            local oldCtx = r.ctx
+            r.ctx = Cmpctx:new(nil, oldCtx)
+            local p = state:blockSize()
+            state:subCodeGen(ast, 'content')
+            state:addCode'brek'
+            p:honor(#r.ctx)
+            r.ctx = oldCtx
+        end,
         unaryop = Cargs(2) * Cc'exp' / subCodeGen / codeOP.u / c_addCode,
         binop = Cargs(2) * Cc'exp1' / subCodeGen * Cc'up' / c_addCode * Cc'exp2' / subCodeGen / codeOP.b / c_addCode,
         conjunction = Cargs(2) * Cc'jmp_Z' / Xjunction,
@@ -439,7 +512,7 @@ function metaCompiler:new(r)
             state:jmp('jmp', pStart)
             pEnd:honor(#state.code)
         end * Cargs(2),
-        ['return'] = Cargs(2) * Cc'exp' / subCodeGen * Cc'ret' / c_addCode,
+        ['return'] = Cargs(2) * Cc'clean' / c_addCode * Cc'exp' / subCodeGen * Cc'ret' / c_addCode,
         --input
         io = Cargs(2) * Cc'read' / c_addCode,
         ---@param state Compiler
@@ -473,12 +546,12 @@ end
 ---The top level __call metamethod also has a check for global variables which are used whitout being ever initialized
 function metaCompiler:__call(ast)
     self:codeGen(ast)
-    self:addCode("ret")
-    for k, v in pairs(self.vars) do
-        if type(k) == 'string' and self.vars[v] ~= k then
-            print(("Warning, global variable `%s` is used but never initialized"):format(k))
-        end
-    end
+    self:addCode("brek")
+--    for k, v in pairs(self.vars) do
+--        if type(k) == 'string' and self.vars[v] ~= k then
+--            print(("Warning, global variable `%s` is used but never initialized"):format(k))
+--        end
+--    end
     return self.code
 end
 

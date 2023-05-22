@@ -6,7 +6,7 @@ local Object = require "Object"
 local Stack = require"Stack"
 local Array = require "Array"
 require "utils"
-local IntStack = require"IntStack"
+local Context = require"Context"
 
 local P = lpeg.P
 local S = lpeg.S
@@ -32,10 +32,24 @@ if _INTERPRETER_DEBUG == nil then
     _INTERPRETER_DEBUG = true
 end
 
+local function loadCtx(ctx, n, gmem)
+    if n == - 1 then
+        return gmem
+    elseif n >= 0 then
+        while n > 0 do
+            ctx = ctx.parent
+            n = n - 1
+        end
+        return ctx
+    else
+        error("loadCtx():\tincorrect prefix")
+    end
+end
+
 ---@class Run
 ---@field code (number|string)[]
----@field mem table
----@field stack IntStack
+---@field gmem Context
+---@field stack Context
 ---@field switch fun():boolean?
 local Run = {
     ---@TODO on the lua discussion boards, see why concat doesn't use tostring and __tostring and argue/code in favor of it.
@@ -53,10 +67,10 @@ function Run:new(code, run)
     run = run or {}
     run.code = code or run.code or self.code or {}
     code = run.code
-    run.mem = run.mem or self.mem or {}
-    local mem = run.mem
+    run.gmem = run.gmem or self.gmem or {}
+    local gmem = run.gmem
     ---@TODO store position as well ? A priori, everything relevant is in the oject stack
-    run.stack = run.stack or self.stack or IntStack:new()
+    run.stack = run.stack or self.stack or Context:new({}, 1)
     run.trace = run.trace or Stack() --and nil
 
     function self:__call(code, run)        
@@ -71,14 +85,14 @@ function Run:new(code, run)
         local trace = run.trace
         local concat = self.concat
         local stack = run.stack
-        local pStack0 = #stack
-        assert(0<pStack0, "stack length can't be non positive")
+        --local pStack0 = #stack
+        --assert(0<pStack0, "stack length can't be non positive")
 
         local push, write, pop, peek = stack.push, stack.write, stack.pop, stack.peek
         if trace then
             local rawpush, rawwrite, rawpop, rawpeek = push, write, pop, peek
-            ---@param stack IntStack
-            ---@param ... IntStackElement
+            ---@param stack Context
+            ---@param ... ContextElement
             push = function (stack, ...)
                 --shouldn't happen, if it does, it most likely is an error in the compiler
                 if not stack.validTypes[type(...)] then error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end ---@TODO : make it only number/pointers when rewriting the VM.
@@ -86,8 +100,8 @@ function Run:new(code, run)
                 --trace:push(tostring(stack):gsub('[\n\t]', ' '))
                 rawpush(stack, ...)
             end
-            ---@param stack IntStack
-            ---@param ... IntStackElement
+            ---@param stack Context
+            ---@param ... ContextElement
             write = function (stack, ...)
                 --shouldn't happen, if it does, it most likely is an error in the compiler
                 if not stack.validTypes[type(...)] then error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end ---@TODO : make it only number/pointers when rewriting the VM.
@@ -125,16 +139,12 @@ function Run:new(code, run)
             push  = function() pc = pc+1 ; push(stack, code[pc]) end,
             write = function() pc = pc+1 ; write(stack, code[pc]) end,
             pop   = function() pop(stack) end,
-            up    = function() stack.len = #stack + 1 ; end,  --moves the head one step up the stack
-            mv    = function() pc = pc + 1 ; stack.len = #stack - code[pc] end, --moves the head a static number of steps down the stack
-            mv_d  = function() stack.len = #stack - stack.top end,              --moves the head a dynamic number of steps down the stack
+            up    = function() stack.arrlen = #stack + 1 ; end,  --moves the head one step up the stack
+            mv    = function() pc = pc + 1 ; stack.arrlen = #stack - code[pc] end, --moves the head a static number of steps down the stack
+            mv_d  = function() stack.arrlen = #stack - stack.top end,              --moves the head a dynamic number of steps down the stack
             dup   = function() push(stack, peek(stack)) end,
-            load  = function() pc = pc+1 ; write(stack, mem[code[pc]]) end,
-            store = function() pc = pc+1 ; mem[code[pc]] = peek(stack) end,
             print = function() print("@ = ", peek(stack)) end,
             read  = function() print"@ " ; write(stack, io.stdin:read('n')) end,
-            ret   = function() return assert(#stack == pStack0, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack .. "\t pStack0:\t" .. pStack0) end,
-            call  = function() run(stack.top) end,
             --control structures
             jmp     = function() pc = pc + 1 ;                          pc = pc + code[pc]     end,
             jmp_Z   = function() pc = pc + 1 ; if peek(stack) == 0 then pc = pc + code[pc] end end,
@@ -142,43 +152,44 @@ function Run:new(code, run)
             jmp_NZ  = function() pc = pc + 1 ; if peek(stack) ~= 0 then pc = pc + code[pc] end end,
             jmpop_NZ= function() pc = pc + 1 ; if pop (stack) ~= 0 then pc = pc + code[pc] end end,
             --binary operations
-            add = function() write(stack, stack[-1] + pop(stack)) end,
-            sub = function() write(stack, stack[-1] - pop(stack)) end,
-            mul = function() write(stack, stack[-1] * pop(stack)) end,
-            div = function() write(stack, stack[-1] / pop(stack)) end,
-            idiv= function() write(stack, stack[-1] //pop(stack)) end,
-            mod = function() write(stack, stack[-1] % pop(stack)) end,
-            pow = function() write(stack, stack[-1] ^ pop(stack)) end,
+            add = function() write(stack, stack[#stack - 1] + pop(stack)) end,
+            sub = function() write(stack, stack[#stack - 1] - pop(stack)) end,
+            mul = function() write(stack, stack[#stack - 1] * pop(stack)) end,
+            div = function() write(stack, stack[#stack - 1] / pop(stack)) end,
+            idiv= function() write(stack, stack[#stack - 1] //pop(stack)) end,
+            mod = function() write(stack, stack[#stack - 1] % pop(stack)) end,
+            pow = function() write(stack, stack[#stack - 1] ^ pop(stack)) end,
 --        ["and"] = function() if stack[-1] == 0 then stack.top = pop(stack) else stack.len = #stack - 1 end end,
 --        ["or"]  = function() if stack[-1] ~= 0 then stack.top = pop(stack) else stack.len = #stack - 1 end end,
             --unary operations
             plus = function () end,
-            minus  = function() stack.top = -stack[0] end,
+            minus  = function() stack.top = -stack[#stack] end,
             ["not"] = function() stack.top = stack.top == 0 and 1 or 0 end,
             --binary comparisons
-            lt  = function() write(stack, stack[-1] <  pop(stack) and 1 or 0) print("lt", stack) end,
-            le  = function() write(stack, stack[-1] <= pop(stack) and 1 or 0) end,
-            gt  = function() write(stack, stack[-1] >  pop(stack) and 1 or 0) end,
-            ge  = function() write(stack, stack[-1] >= pop(stack) and 1 or 0) end,
-            eq  = function() write(stack, stack[-1] == pop(stack) and 1 or 0) end,
-            neq = function() write(stack, stack[-1] ~= pop(stack) and 1 or 0) end,
+            lt  = function() write(stack, stack[#stack - 1] <  pop(stack) and 1 or 0) end,
+            le  = function() write(stack, stack[#stack - 1] <= pop(stack) and 1 or 0) end,
+            gt  = function() write(stack, stack[#stack - 1] >  pop(stack) and 1 or 0) end,
+            ge  = function() write(stack, stack[#stack - 1] >= pop(stack) and 1 or 0) end,
+            eq  = function() write(stack, stack[#stack - 1] == pop(stack) and 1 or 0) end,
+            neq = function() write(stack, stack[#stack - 1] ~= pop(stack) and 1 or 0) end,
             --chained comparisons. if top 2 of the stack are `a, b`, it leaves `b, a comp b`
-            c_lt  = function() local a, b = peek(stack, 2) ; stack[-1] = b; write(stack, a <  b and 1 or 0) end,
-            c_le  = function() local a, b = peek(stack, 2) ; stack[-1] = b write(stack, a <= b and 1 or 0)  end,
-            c_gt  = function() local a, b = peek(stack, 2) ; stack[-1] = b; write(stack, a >  b and 1 or 0) end,
-            c_ge  = function() local a, b = peek(stack, 2) ; stack[-1] = b; write(stack, a >= b and 1 or 0) end,
-            c_eq  = function() local a, b = peek(stack, 2) ; stack[-1] = b; write(stack, a == b and 1 or 0) end,
-            c_neq = function() local a, b = peek(stack, 2) ; stack[-1] = b; write(stack, a ~= b and 1 or 0) end,
+            c_lt  = function() local a, b = peek(stack, 2) ; stack[# stack - 1] = b; write(stack, a <  b and 1 or 0) end,
+            c_le  = function() local a, b = peek(stack, 2) ; stack[# stack - 1] = b write(stack, a <= b and 1 or 0)  end,
+            c_gt  = function() local a, b = peek(stack, 2) ; stack[# stack - 1] = b; write(stack, a >  b and 1 or 0) end,
+            c_ge  = function() local a, b = peek(stack, 2) ; stack[# stack - 1] = b; write(stack, a >= b and 1 or 0) end,
+            c_eq  = function() local a, b = peek(stack, 2) ; stack[# stack - 1] = b; write(stack, a == b and 1 or 0) end,
+            c_neq = function() local a, b = peek(stack, 2) ; stack[# stack - 1] = b; write(stack, a ~= b and 1 or 0) end,
 
-            --arrays
-            ---for now, arrays are simply lua tables
-
-            ---@TODO ponder a while when reimplementing the vm in a lower level language as a registr machine
+            block = function() pc = pc + 1 ; local oldStack = stack ;
+                stack = Context:new({}, nil, code[pc])
+                stack.parent = oldStack
+            end,
+            ---@TODO ponder a while when reimplementing the vm in a lower level language as a register machine
             ---@TODO ponder 0 or 1 index
             ---@diagnostic disable-next-line: param-type-mismatch
-            new = function() stack.top = Array(stack.top) end,
+            new = function() stack.top = Context:new({}, stack.top, 0) end,
             ---@diagnostic disable-next-line: param-type-mismatch
-            c_new = function() local size = peek(stack) ; stack.top = Array(size) ; push(stack, size) end,
+            c_new = function() local size = peek(stack) ; stack.top = Context:new({}, size, 0) ; push(stack, size) end,
             set = function() local a, k, v = pop(stack, 3);
                 assert(type(k) == 'number' and 0 < k and k <= #a, ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, a, #a) )
                 --    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
@@ -186,11 +197,41 @@ function Run:new(code, run)
             c_set = function() local a, k, v = peek(stack, 3);
                 assert(type(k) == 'number' and 0 < k and k <= #a, ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, a, #a) )
                 --    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
-                set(a, k, v) ; stack.len = #stack - 1 end,
+                set(a, k, v) ; stack.arrlen = #stack - 1 end,
             ---@TODO think of default value. is it nil, is it garbage ? do we keep it as an error ?
-            get = function () assert(0 < stack.top and stack.top <= #stack[-1], "Array index out of range") ; push(stack, rawget(pop(stack, 2))) end,
+            get = function () assert(0 < stack.top and stack.top <= #stack[#stack-1], "Array index out of range") ; push(stack, rawget(pop(stack, 2))) end,
             clean = function () stack:clean() end,
-            pack = function () stack:pack() end,
+            load  = function()
+                pc = pc+1
+                local ctx = loadCtx(stack, code[pc], gmem)
+                pc = pc + 1
+                write(stack, ctx[code[pc]])
+            end,
+            store = function()
+                pc = pc+1
+                local ctx = loadCtx(stack, code[pc], gmem)
+                pc = pc + 1
+                ctx[code[pc]] = peek(stack)
+            end,
+            brek  = function()
+                assert(#stack == 1, "Incorrect Stack height upon break:\n" .. tostring(stack) .. "\t len:\t" .. #stack)
+                stack.parent:write(stack[0])
+                stack = stack.parent
+            end,
+            ret   = function()
+                if #stack == 0 then
+                    stack.parent:clean()
+                    return true
+                end
+                assert(#stack == 1, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack)
+                local s = stack.parent.arrlen
+                stack.parent.arrlen = s - 1
+                stack.parent:push(table.unpack(stack, 1, rawlen(stack)))
+                stack.parent.arrlen = s
+                return true
+            end,
+            --ret   = function() return assert(#stack == pStack0, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack .. "\t pStack0:\t" .. pStack0) end,
+            call  = function() run(stack.top) end,
         }
         setmetatable(run.switch, {__index = function()
                 print(trace and trace:unpack())
@@ -215,7 +256,7 @@ function Run:new(code, run)
 end
 function Run:run()
     repeat until self.switch()
-    local r =  self.stack.top
+    local r = self.stack
     return r
 end
 --setmetatable(Run, {__call = function (self, code, run)

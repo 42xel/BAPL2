@@ -15,9 +15,7 @@ Let's call their result formula.
     - "free". Whatever
 - tackle `if` and `while` : recommend using parenthesised sequences with semi-colons.
 - assignments as a left value ? (useful for default value)
-## TODO
 
-- submit lesson 6 and start working on functions.
 - make list an expression. List are comma separated expressions, yielding several values at once. Allows several returns.
     - a big issue is `a and 3 or (4, 6)` with sort of a type error on the stack, unless `(4,6)` is cerced to `4`. I now understand better why lua does it that way. That implies they're only useable in special contexts such as assignements and returns.
     - use register ?
@@ -25,6 +23,12 @@ Let's call their result formula.
     - at the end of the day, list as primary value, and that's what we're talking about, is OO. And OO is better done with Objects rather than stack manipulation.
     So do use return statements.
     - list usage "restricted" to lhs, rhs, return statement ?, packing and unpacking statements.
+## TODO
+- submit lesson 6 and start working on functions.
+- change assign such that right side is always evaluated first ?
+    - makes left assoc assign useful.
+    - code not executed in the order it's written though.
+    - should still be somewhat neutral on assignement overload.
 
 # functions
 ## DONE
@@ -40,7 +44,27 @@ Not really an issue though, most languages are like that.
 - make functions : `id # = exp` : `id` is set to the function which yields `exp`. `id #` to call it. High prio. So no anonymous function ? not necessarilly. `(#= exp)` could be one syntax, remember, affectation also yields result.
 ## TODO
 
-- add `...̀  which represent whatever is on the stack and use it to pass parameters, explicitely while chaining blocks, implicitely when using parentheses for functions calls.
+- erase the difference between mem and array and IntStack ? => context ?
+    - positive is stack
+    - zero is self
+    - negative is locale variable
+    - metadata / pair :
+        - parent
+        - caller
+        - association table of global name local slot.
+    - block evaluation :
+        - end of block / break : self (self[0])
+        - return : nil
+        - return exp : exp (potentially list)
+        - so return statement writes in caller/parent ?
+    - make proxies for different functions ? Array/IntStack and Context ?
+    - for later : dizionario ? (woudn't it be easier right away ?)
+- add variable scoping
+    - use mem and Proxy ? in blocks ?
+    - is there a distinction between global and local ? or is there just a top level
+    - syntax : `.bla` or `.\bla` for local ? <br>
+    `~bla` or `~\bla` for global/toplevel ? <br>
+    `bla` to infer ?
 - syntax for parameters ? ideally, parameters are "just" codeblock concatenation with context fusion. `block1 \ block2`.
     - so make that codeblock fusion with context fusion.
     - what if `exp` in `id # = exp` is not a block, just an expression ?
@@ -54,6 +78,8 @@ Not really an issue though, most languages are like that.
     f #= parametrizationBlock \ bodyBlock ;
     parameters \ f #;
     ```
+
+- add `...̀  which represent whatever is on the stack and use it to pass parameters, explicitely while chaining blocks, implicitely when using parentheses for functions calls.
 - make unpacking syntax ? 
     - `.{a, b, c} = {3, 4, 5}` ?
     - With optimization `{..a=3,  ..b = 4, ..c = 5}` ?

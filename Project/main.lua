@@ -43,5 +43,7 @@ print()
 
 print(input)
 print("--- run ---")
-print(run(code))
+local r = run(code)
+print("result")
+print(r)
 --------------------------------------------------------------------------------

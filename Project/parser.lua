@@ -14,6 +14,8 @@ local nodeFoldBinop = Node.nodeFoldBinop
 local nodeFoldBinopSuffix = Node.nodeFoldBinopSuffix
 local nodeUnaryop = Node.nodeUnaryop
 local nodeAssign = Node.nodeAssign
+local nodeBlock = Node.nodeBlock
+local nodeReturn = Node.nodeReturn
 
 require "utils"
 
@@ -231,7 +233,7 @@ exp_:push(
     + V'group_'
     + V'if_'    --dubious here ?
     + V'while_' --dubious here ?
-    --+ V'array_' + V'littArray_' --uncomment if you want to put arrays in formula, with some sort of operator overload presumably.
+    --+ V'array_' + V'context' --uncomment if you want to put arrays in formula, with some sort of operator overload presumably.
 )
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
@@ -262,8 +264,9 @@ exp_.formula_ = V(#exp_)
 exp_.array_ = Cfr(Rw_"new" * paren_("[", V'seqs_', "]", "new Array")^1 * (T_"=" * V'exp_' + Cc(nil)),  --at least on result needed for size specifiers (seqs1_)
     Node{tag='new', 'size', 'default'})
 ---litteral Array
-exp_.littArray_ = paren_("{", V'seqs_', "}", "litteral Array")
-    / Node{tag = 'new', 'content'} -- [0] = 'values'}
+exp_.context = paren_("{", V'seqs_', "}", "block/litteral Array")
+    / nodeBlock
+
 -----code block. For now, you have to 
 --exp_.block_ = paren_("{", V'rawList_', "}", "litteral Array")
 --    / Node{tag = 'new', 'content'} -- [0] = 'values'}
@@ -276,7 +279,7 @@ exp_.if_ = Rw_"if" * V'assign_' * (T_";" * _errNoSC + 0) * V'assign_' *
 exp_.while_ = Rw_"while" * V'assign_' * V'assign_' / Node{tag = 'while', 'cond', 'stat'}
 
 ---@TODO remove
-exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = 'return', "exp"}
+exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / nodeReturn
 --exp_.return_ = Rw_"return" * Cc(Node.empty)
 --exp_.break_ = Rw_"break" * (V'exp_' + Cc(nil)) / Node{tag = 'break', "exp"}
 ---@TODO remove return
@@ -284,7 +287,7 @@ exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = 'return', "exp"}
 ---A pure atomic expression in the sense of expressing a single value (compares with sequences and lists)
 exp_. exp_ = (false
     + V'formula_' --contains parentheses group ok.
-    + V'array_' + V'littArray_'
+    + V'array_' + V'context'
     -- if and while here are redundant with exp_[2] (first stage of formula), but they're dubious there and don't hurt here...
     + V'if_'
     + V'while_'
@@ -330,7 +333,7 @@ do
     exp_.lhs_ = Cmt(false
         + fun_
         + V'ref_' --TODO add more
---        + V'group_'
+        + V'group_'
 --        + V'list_'
         ,
         function (_, _, lhs)
@@ -344,67 +347,15 @@ do
 end
 exp_:push(V'lhs_' * T_"=" * V(#exp_ + 1) / nodeAssign + V(#exp_))
 exp_.assign_ = V(#exp_)
----a juxtaposed sequence of lists and assignements
+---a juxtaposed sequence of lists and assignements. Comment out to make semi colons mandatory.
 exp_:push(seq(V(#exp_), nil, true))
 ---semi-colon_can be used to break sequences.
 exp_:push(seq(V(#exp_), T_";"))
 exp_.seqs_ = V(#exp_)
 exp_.seqs1_ = seq(V(#exp_ - 1), T_";", true)
 
---[[
----a comma separated list of expressions
----@TODO error handling. insert `+ _listElement_ * err""` in the middle ?
-exp_.list_ = V'seq_' * (T_"," * V'seq_')^0 * T_","^-1 /
-    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'list', [0] = 'exps'}})
----a juxtaposed sequence of lists
---- Cc(nil) to escape the pesky full match being returned when no capture occurs (nil is part of the capture but forgotten upon filling the table)
---- semicolon_can be used to break sequences, which doesn't do much, except with if and while blocks.
----@TODO try ^0. Remove Cc(nil) if useless.
-exp_.seq_ = (V'exp_')^1 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
----@TODO add lhs_ check  at somelater point ?
-exp_.assign_ = V'lhs' * T_"=" * V'rhs_' / nodeAssign + V'list_'
-exp_.assignList_ = (V'assign_')^1 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
-exp_.seqs_ = ((V'assignList_' + V'list_') * (T_";" * (V'assignList_' + V'list_'))^0 * semicolon_ + Cc(nil)) /
-    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
-exp_.seqs1_ = V'list_' * (T_";" * V'list_')^0 * semicolon_ /
-    Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}})
---]]
 
 exp_ = P(exp_)
-
----@TODO : replace if with therefore. (after switching all statements to expressions). "therefore" is like "and" but with different prio yields the last truthy expression rather than the first falsy.
----@TODO  => is the purely logical, right associative, `imply` and is enough 
-local stats_ = {'stats',
-    ws_ = ws_,
-    exp_ = exp_,
-    ref_ = ref_,
-    lhs_ = V'list_' + V'ref_',
-    stat_ = --( V'block'
-    ---@TODO put more sutff into lhs, such as `(a=b) = c` (meaning `a=b; a=c`) and `a < b = c` (meaning `if (a < b) {a = c} a` ). add !a = b and !!a = b ?
---        + V'lhs_' * T_"=" * V'exp_' / Node{tag = 'stat_assign', "lhs", "exp"}
-        ---@TODO : implement a ternary operator instead
-        ---(if)? <exp> ((therefore|otherwise) <exp>)* else <exp>
-        ---where (therefore|otherwise) is right associative.
-        ---relate it to promise style : 
-            ---new a
-            ---a.therefore().else().therefore() ... --(therefore|otherwise) chain
-            ---a.else() --else
-        --- <exp> ?: <exp> (, <exp>)* 
-        --- <exp> ?: <exp> (, <exp>)* 
-        --- <exp> ?: <exp> (, <exp>)* ; 
-        ---@TODO ponder whether you want to do things like exp * ws^1 * exp, and give it a lower priority than that I guess
-        --+ Rw_"if" * V'exp_' * V'stat_' * (Rw_"else" * V'stat_')^-1 / Node{tag = 'if', "cond", "stat_then", "stat_else"}
-        --+ Rw_"while" * V'exp_' * V'stat_' / Node{tag = 'while', 'cond', 'stat'}
-        -- + T_"@ =" * V'exp_' / Node{tag = 'stat_print', "exp"}
-        --+ Rw_"return" * (V'exp_' + Cc(nil)) / Node{tag = 'return', "exp"}
-        --+ V'exp_' ) 
-        T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!"),
-    ---@TODO make/check ';' optional. (or maybe give it a meaning related to promise/chaining line of code in a sync/async manner ?)
-
-    stats =  (V'stat_')^0 * Cc(nil) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = 'seq', [0] = 'stats'}}),  -- Cc(nil) to escape the pesky full match being returned when no capture occurs. Nil is part of the capture but forgotten upon filling the table
-    block = T_"{" * V'stats' * (T_"}" + err"block: missing brace"),
-}
---stats_ = P(stats_)
 
 --------------------------------------------------------------------------------
 local successParsing = print
@@ -415,7 +366,9 @@ local filePatt =
     -- * (-P(successParsing) / 0)
 ---@return AST
 local function parse (input)
-    return assert(filePatt:match(input))
+    local r = filePatt:match(input)
+    assert(r, "whatever error message there should be")
+    return nodeReturn(nodeBlock(r))
 end
 --------------------------------------------------------------------------------
 return parse

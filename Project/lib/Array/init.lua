@@ -1,13 +1,13 @@
 ---@TODO make Array proxy ?
 ---The first (and for now only) data structure of the language.
 --@class Array : number[]
----@alias Array IntStackElement[]
-
+----@alias Array IntStackElement[]
+---@class Array : table
 local Array = {__name = 'Array'}
 do  --localising ArraySizes
     local ArraySizes = setmetatable({}, {__mode='k'})   ---we're only storing information around arrays here, we don't want to keep them alive.
+    ---@return Array
     function Array:new (s)
-        assert(type(s) == 'number' or type(s) == 'table')
         if type(s) == 'number' then
             local r = setmetatable({--[[size = size or 0]]}, self)
             ArraySizes[r] = s
@@ -16,6 +16,7 @@ do  --localising ArraySizes
             ArraySizes[s] = #s
             return setmetatable(s, self)
         end
+        error("Array:new (s) : wrong input type:\t" .. type(s))
     end
     function Array:__len ()
         return ArraySizes[self]
@@ -60,5 +61,5 @@ setmetatable(Array, {__call = Array.new})
 
 ---@alias ArrayNew fun(s:integer|table):Array
 ---@diagnostic disable-next-line: cast-type-mismatch
----@cast Array ({new: ArrayNew}) | ArrayNew
+---@cast Array Array | ArrayNew
 return Array

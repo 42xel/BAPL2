@@ -205,6 +205,7 @@ function Run:new(code, run)
                 pc = pc+1
                 local ctx = loadCtx(stack, code[pc], gmem)
                 pc = pc + 1
+                print("load", code[pc-1], code[pc], ctx[code[pc]])
                 write(stack, ctx[code[pc]])
             end,
             store = function()

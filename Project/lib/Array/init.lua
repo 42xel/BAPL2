@@ -1,3 +1,9 @@
+local pt = require "pt".pt
+
+if _INTERPRETER_MAX_ARRAY_DEPTH == nil then
+    _INTERPRETER_MAX_ARRAY_DEPTH = 5
+end
+
 ---@TODO make Array proxy ?
 ---The first (and for now only) data structure of the language.
 --@class Array : number[]
@@ -39,7 +45,10 @@ do  --localising depth
     function Array:__tostring()
         local r = "\n" .. string.rep("\t", depth) .. "{ " --making room before
         depth = depth + 1
-
+        if depth > _INTERPRETER_MAX_ARRAY_DEPTH then    ---@TODO do something smarter, inspired by pt.
+            depth = depth - 1
+            return r .. "... }"
+        end
         local ts = {}
         local d = depth
         for i = 1, #self do

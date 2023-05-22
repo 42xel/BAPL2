@@ -121,24 +121,30 @@ function Compiler:invalidAst(ast)
     return self, ast
 end
 ---@TODO maybe remove the warning, because of functions ?
-function Compiler:getVariable(ast)
+function Compiler:getVariable(ast, vars)
     local ctx = self.ctx
+    --print("Compiler:getVariable() 0:\t", ast.var, ast.prefix, pt(ctx), pt(vars))
     if not ast.prefix then
         ast.prefix = 0
+        --print("Compiler:getVariable() 1:\t", ast.var, ast.prefix, pt(ctx))
     end
-    for i = 1, ast.prefix do
+    for _ = 1, ast.prefix do
         ctx = ctx.parent
+        --print("Compiler:getVariable() 2:\t", ast.var, ast.prefix, pt(ctx))
     end
-    while not ctx[ast.var] do
+    while not rawget(ctx, ast.var) do
         ast.prefix = ast.prefix + 1
-        ctx = ctx.parent
+        ctx = rawget(ctx, 'parent')
+        --print("Compiler:getVariable() 3:\t", ast.var, ast.prefix, pt(ctx))
         if not ctx then --not found : global (easier than to redo all the tests to require declaration ?)
             ast.prefix = - 1
-            break
+            self:addCode(ast.prefix)
+            return self:addCode(- vars[ast.var])
         end
     end
+    --print("Compiler:getVariable() 4:\t", ast.var, ast.prefix, pt(ctx))
     self:addCode(ast.prefix)
-    return self:addCode(-ctx[ast.var])
+    return self:addCode(- ctx[ast.var])
 --    return self:addCode(assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast)))
 end
 
@@ -313,6 +319,7 @@ function metaCompiler:new(r)
             end,
         })
     end
+    print("Compiler:new() 0", pt(r.vars))
     local Cmpctx = {}
     do
         local cmp = self
@@ -330,7 +337,7 @@ function metaCompiler:new(r)
             return setmetatable(t, self)
         end
         function Cmpctx:__len() --should be the same as rawlen,
-            return self[varsn]
+            return self[varsn] - 1
         end
     end
 
@@ -390,8 +397,8 @@ function metaCompiler:new(r)
         ---@TODO rename global ? issue with scopes and overload. Ideally, lhs processed before rhs.
         variable = Cargs(2) * Cc'exp' / subCodeGen * Cc'store' / c_addCode / function(state, ast)
             --state.vars[state.vars[ast.lhs.var]] = ast.lhs.var ; --mark the variable as having an initializer
-            --addCode(state, state.vars[ast.lhs.var]) 
-            getVariable(state, ast.lhs)
+            --addCode(state, state.vars[ast.lhs.var])
+            getVariable(state, ast.lhs, r.vars)
         end * Cargs(2),
         --[[
         I feel it's important to compile the lhs before the expression to assign.
@@ -436,7 +443,7 @@ function metaCompiler:new(r)
         ---@TODO depending on how floats are treated, revisit.
         void = lpeg.P(true),
         number = Cargs(2) * Cc'write' / c_addCode * Cc'val' / addCodeField,
-        variable = Cargs(2) * Cc'load' / c_addCode / getVariable,
+        variable = Cargs(2) * Cc'load' / c_addCode * Cc(r.vars) / getVariable,
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
         fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
@@ -546,7 +553,6 @@ end
 ---The top level __call metamethod also has a check for global variables which are used whitout being ever initialized
 function metaCompiler:__call(ast)
     self:codeGen(ast)
-    self:addCode("brek")
 --    for k, v in pairs(self.vars) do
 --        if type(k) == 'string' and self.vars[v] ~= k then
 --            print(("Warning, global variable `%s` is used but never initialized"):format(k))

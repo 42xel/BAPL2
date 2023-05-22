@@ -35,7 +35,7 @@ Context.caller = nil
 function Context:new(t, arrlen, memlen)
     t = getmetatable(self).new(self, t or {}) --inheritance of sort (here inheriting from Proxy)
 
-    self.arrlen = arrlen or rawlen(t)
+    self.arrlen = arrlen or math.max(1, rawlen(t))
     if not memlen then
         memlen = - 1
         while rawget(t, memlen) do
@@ -102,7 +102,7 @@ end
 --Context.__shl = Context.push
 --Context.__shr = Context.write
 function Context:__tostring()
-    if self.memlen == 0 and self[0] == self then
+    if self.memlen == 0 and self[0] == self then    --litteral Array I guess
         return Array.__tostring(self)
     end
     --print("bla", self.memlen, self[0] == self)
@@ -115,6 +115,9 @@ end
 
 function Context:_defaultGettersFactory()
     local function __index (stack, k)
+        if type(k) ~= 'number' then
+            error("Context key, type error:\t" .. type(k) .. " " .. tostring(k))
+        end
         assert(-stack.memlen <= k and k <= stack.arrlen, ("Context index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen))
         return rawget(stack, k)
     end
@@ -149,6 +152,9 @@ function Context:_defaultGettersFactory()
 end
 function Context:_defaultSettersFactory()
     local __index = function (stack, k, v)
+        if type(k) ~= 'number' then
+            error("Context key, type error:\t" .. type(k) .. " " .. tostring(k))
+        end
         if  not(-stack.memlen <= k and k <= stack.arrlen) then
             error(("Context index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen), 5)
         end
@@ -173,7 +179,7 @@ Proxy(Context)
 Context()  --initializing by creating an empty Context
 Context.__call = nil   --removing an undesired metamethod.
 Context.parent = Context:new(Context.parent, 1)
-Context.parent.parent = Context.parent
+rawset(Context.parent, 'parent', Context.parent)
 
 ---@alias ContextGenerator fun(self:Proxy, t?:table, arrlen?:number, memlen?:number):Context
 ---@diagnostic disable-next-line: cast-type-mismatch

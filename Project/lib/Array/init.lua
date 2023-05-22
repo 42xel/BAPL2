@@ -52,7 +52,7 @@ do  --localising depth
         local ts = {}
         local d = depth
         for i = 1, #self do
-            table.insert(ts, tostring(self[i]))
+            table.insert(ts, tostring(rawget(self, i)))
         end
         assert(d == depth)
         r = r .. table.concat(ts, ", ")

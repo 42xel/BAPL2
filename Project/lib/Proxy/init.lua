@@ -9,9 +9,9 @@ local _README = _README
 
 ---@class Proxy : table
 ---@field _defaultGetters? ProxyGettersTable
----@field _defaultGettersFactory? fun(self:Proxy) : ProxyGettersTable
+---@field _defaultGettersFactory? fun(self:Proxy) : ProxyGettersTable   --a factory used for inheritance.
 ---@field _defaultSetters? ProxySettersTable
----@field _defaultSettersFactory? fun(self:Proxy) : ProxySettersTable
+---@field _defaultSettersFactory? fun(self:Proxy) : ProxySettersTable   --a factory used for inheritance.
 ---@field metaGetters? {[Proxy]: ProxyGettersTable}
 ---@field metaSetters? {[Proxy]: ProxySettersTable}
 local Proxy = {__name = "Proxy"}

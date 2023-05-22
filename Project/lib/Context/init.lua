@@ -23,8 +23,9 @@ local Context = {__name = "Context",
         ["nil"] = true,
     }
 }
-Context.arrlen = 0
+Context.hpos = 0
 Context.memlen = 0
+Context.arrlen = 0
 
 ---@TODO : clean that thing up
 --the toplevel parent
@@ -34,18 +35,18 @@ Context.caller = nil
 Context.hpos = 1
 
 ---@TODO (for memory cleaning, after VM rewrite) add owner ?
-function Context:new(t, arrlen, memlen)
+function Context:new(t)
     t = getmetatable(self).new(self, t or {}) --inheritance of sort (here inheriting from Proxy)
 
-    self.arrlen = arrlen or math.max(1, rawlen(t))
-    if not memlen then
-        memlen = - 1
-        while rawget(t, memlen) do
-            memlen = memlen - 1
+    t.arrlen = rawget(t, "arrlen") or rawlen(t)
+    t.hpos = rawget(t, "hpos") or 1
+    if not t.memlen then
+        t.memlen = - 1
+        while rawget(t, t.memlen) do
+            t.memlen = t.memlen - 1
         end
-        memlen = - 1 - memlen
+        t.memlen = - 1 - t.memlen
     end
-    self.memlen = memlen
     t[0] = t
     --t.parent = self   --don't if you don't need I guess ?
     --t.caller = self   --caller ccorresponds to `caller \ callee` ?
@@ -53,40 +54,36 @@ function Context:new(t, arrlen, memlen)
     return setmetatable(t, self)
 end
 
-function Context:push(...)   --pushes one or several values and returns self, for chaining
-    local n, s = select('#', ...), self.arrlen
-    self.arrlen = s + n
+function Context:push(...)   --pushes one or several values to the stack and returns self, for chaining
+    local n, s = select('#', ...), self.hpos
+    self.hpos = s + n
     table.move({...}, 1, n, 1 + s, self)
     return self
 end
 function Context:write(v)  --write a single value at the top of the Stack and returns the stack.
-    if self.arrlen == 0 then
-        print("Context:write(): warning arrlen was zero")
-        self.arrlen = 1;
+    ---@TODO check whether good/necessary or whether it'd be better to error.
+    if self.hpos == 0 then
+        print("Context:write(): warning head position was zero")
+        self.hpos = 1;
     end
-    self.arrlen = math.max(1, self.arrlen)  ---@TODO check whether good/necessary or whether it'd be better to error.
     self.head = v
     return self
 end
 function Context:rawPeek(n)
-    return table.move(self, self.arrlen + 1 - n, self.arrlen, 1, {})
+    return table.move(self, self.hpos + 1 - n, self.hpos, 1, {})
 end
 function Context:pop(n)    --pops n values and returns them
-    n =  n or 1
-    if self.arrlen < n then
-        error(("can't peek that many (%s) items from the stack (%s)"):format(n, #self), 2)
-    end
+    n = math.min(self.hpos, n or 1)
     local r = self:rawPeek(n)
-    self.arrlen = self.arrlen - n
+    self.hpos = self.hpos - n
     return table.unpack(r)
 end
---@remark ugly code repetition but there is no graceful way to avoid it.
 function Context:peek(n)    --peeks at the n top values returns them
-    --assert(n <= #self, "can't peek that many items from the stack")
-    return table.unpack(self:rawPeek(n or 1))
+    n = math.min(self.hpos, n or 1)
+    return table.unpack(self:rawPeek(n))
 end
 function Context:clean()
-    for i = math.max(1,self.arrlen), rawlen(self) do
+    for i = math.max(1, self.hpos), rawlen(self) do
         rawset(self, i, nil)
     end
 end
@@ -99,7 +96,7 @@ end
 --    self.top = Array(r)
 --end
 function Context:__len()
-    return self.hpos
+    return math.max(self.hpos, self.arrlen, rawlen(self))
 end
 --Context.__shl = Context.push
 --Context.__shr = Context.write
@@ -107,20 +104,20 @@ function Context:__tostring()
     if self.memlen == 0 and self[0] == self then    --litteral Array I guess
         return Array.__tostring(self)
     end
-    --print("bla", self.memlen, self[0] == self)
     local r = Context.__name .. ": {\n"
-    for i = math.max(self.arrlen, rawlen(self)), 1, -1 do
-        r = r .. (i == self.arrlen and "->" or "") .. "\t" .. tostring (self[i]) .. "\n"
+    for i = math.max(self.hpos, rawlen(self), self.arrlen), 1, -1 do
+        ---@TODO show variables ? (i < 0)
+        r = r .. (i == self.hpos and "->" or "") .. "\t" .. tostring (self[i]) .. "\n"
     end
     return r .. "}"
 end
 
 function Context:_defaultGettersFactory()
     local function __index (stack, k)
-        if type(k) ~= 'number' then
+        if type(k) ~= 'number' then ---@TODO should never happen, remove
             error("Context key, type error:\t" .. type(k) .. " " .. tostring(k))
         end
-        assert(-stack.memlen <= k and k <= stack.arrlen, ("Context index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen))
+--        assert(-stack.memlen <= k and k <= stack.arrlen, ("Context index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen))
         return rawget(stack, k)
     end
     self._defaultGetters = setmetatable({
@@ -139,37 +136,40 @@ function Context:_defaultGettersFactory()
         --fields
         memlen = self,
         arrlen = self,
+        hpos   = self,
         parent = self,
         caller = self,
         --proxy (pseudo) fields
-        head = function (stack) return rawget(stack, #stack) end,
+        head = function (stack) return rawget(stack, stack.hpos) end,
         ---@TODO
         --proxy register fields
         --the size of the last litteral array. Needs to be a stack itself I'm afraid.
     }, {__index = function (_, k)
         if type(k) == 'number' then return __index else
-            error(("Context index %s invalid"):format(k), 2) end
+            error(("Array index %s invalid"):format(k), 2) end
     end})
     return self._defaultGetters
 end
 function Context:_defaultSettersFactory()
     local __index = function (stack, k, v)
-        if type(k) ~= 'number' then
-            error("Context key, type error:\t" .. type(k) .. " " .. tostring(k))
+        if type(k) ~= 'number' then --should not happen
+            error("Array key, type error:\t" .. type(k) .. " " .. tostring(k))
         end
-        if  not(-stack.memlen <= k and k <= stack.arrlen) then
-            error(("Context index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen), 5)
-        end
+--        if  not(-stack.memlen <= k and k <= stack.arrlen) then
+--            ---@TODO separtate error for > 0 (Array) and < 0 (local var of context)
+--            error(("Array index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen), 5)
+--        end
         rawset(stack, k, v)
     end
     self._defaultSetters = setmetatable({
         --fields
         memlen = self,
         arrlen = self,
+        hpos   = self,
         parent = self,
         caller = self,
         --proxy fields
-        head = function (stack, _top, v) rawset(stack, #stack, v) end,
+        head = function (stack, _head, v) rawset(stack, stack.hpos, v) end,
     }, {__index = function (_, k)
         if type(k) == 'number' then return __index else
             error(("Context index %s invalid"):format(k), 2) end
@@ -180,10 +180,10 @@ end
 Proxy(Context)
 Context()  --initializing by creating an empty Context
 Context.__call = nil   --removing an undesired metamethod.
-Context.parent = Context:new(Context.parent, 1)
+Context.parent = Context:new(Context.parent)
 rawset(Context.parent, 'parent', Context.parent)
 
----@alias ContextGenerator fun(self:Proxy, t?:table, arrlen?:number, memlen?:number):Context
+---@alias ContextGenerator fun(self:Proxy, t?:table):Context    --, arrlen?:number, memlen?:number
 ---@diagnostic disable-next-line: cast-type-mismatch
 ---@cast Context ({new: ContextGenerator})
 

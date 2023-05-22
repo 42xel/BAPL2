@@ -319,7 +319,6 @@ function metaCompiler:new(r)
             end,
         })
     end
-    print("Compiler:new() 0", pt(r.vars))
     local Cmpctx = {}
     do
         local cmp = self

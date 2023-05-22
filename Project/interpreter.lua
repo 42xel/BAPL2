@@ -141,7 +141,7 @@ function Run:new(code, run)
             pop   = function() pop(stack) end,
             up    = function() stack.arrlen = #stack + 1 ; end,  --moves the head one step up the stack
             mv    = function() pc = pc + 1 ; stack.arrlen = #stack - code[pc] end, --moves the head a static number of steps down the stack
-            mv_d  = function() stack.arrlen = #stack - stack.top end,              --moves the head a dynamic number of steps down the stack
+            mv_d  = function() stack.arrlen = #stack - stack.head end,              --moves the head a dynamic number of steps down the stack
             dup   = function() push(stack, peek(stack)) end,
             print = function() print("@ = ", peek(stack)) end,
             read  = function() print"@ " ; write(stack, io.stdin:read('n')) end,
@@ -163,8 +163,8 @@ function Run:new(code, run)
 --        ["or"]  = function() if stack[-1] ~= 0 then stack.top = pop(stack) else stack.len = #stack - 1 end end,
             --unary operations
             plus = function () end,
-            minus  = function() stack.top = -stack[#stack] end,
-            ["not"] = function() stack.top = stack.top == 0 and 1 or 0 end,
+            minus  = function() stack.head = -stack[#stack] end,
+            ["not"] = function() stack.head = stack.head == 0 and 1 or 0 end,
             --binary comparisons
             lt  = function() write(stack, stack[#stack - 1] <  pop(stack) and 1 or 0) end,
             le  = function() write(stack, stack[#stack - 1] <= pop(stack) and 1 or 0) end,
@@ -187,9 +187,9 @@ function Run:new(code, run)
             ---@TODO ponder a while when reimplementing the vm in a lower level language as a register machine
             ---@TODO ponder 0 or 1 index
             ---@diagnostic disable-next-line: param-type-mismatch
-            new = function() stack.top = Context:new({}, stack.top, 0) end,
+            new = function() stack.head = Context:new({}, stack.head, 0) end,
             ---@diagnostic disable-next-line: param-type-mismatch
-            c_new = function() local size = peek(stack) ; stack.top = Context:new({}, size, 0) ; push(stack, size) end,
+            c_new = function() local size = peek(stack) ; stack.head = Context:new({}, size, 0) ; push(stack, size) end,
             set = function() local a, k, v = pop(stack, 3);
                 assert(type(k) == 'number' and 0 < k and k <= #a, ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, a, #a) )
                 --    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
@@ -199,7 +199,7 @@ function Run:new(code, run)
                 --    assert(type(v) or true, "set(Array, ?, ?) : incorrect data type")
                 set(a, k, v) ; stack.arrlen = #stack - 1 end,
             ---@TODO think of default value. is it nil, is it garbage ? do we keep it as an error ?
-            get = function () assert(0 < stack.top and stack.top <= #stack[#stack-1], "Array index out of range") ; push(stack, rawget(pop(stack, 2))) end,
+            get = function () assert(0 < stack.head and stack.head <= #stack[#stack-1], "Array index out of range") ; push(stack, rawget(pop(stack, 2))) end,
             clean = function () stack:clean() end,
             load  = function()
                 pc = pc+1
@@ -232,7 +232,7 @@ function Run:new(code, run)
                 return true
             end,
             --ret   = function() return assert(#stack == pStack0, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. #stack .. "\t pStack0:\t" .. pStack0) end,
-            call  = function() run(stack.top) end,
+            call  = function() run(stack.head) end,
         }
         setmetatable(run.switch, {__index = function()
                 print(trace and trace:unpack())

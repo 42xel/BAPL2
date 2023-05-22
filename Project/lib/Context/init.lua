@@ -13,7 +13,7 @@ To implement using a C++ vector or two, or something similar I guess. Or an arra
 What's currently metadata should probably be regular data as well, on what language.the VM is eventually rewritten.
 ]]
 ---@class Context : Proxy
----@field top ContextElement
+---@field head ContextElement
 ---@field parent Context
 ---@field caller Context
 local Context = {__name = "Context",
@@ -31,6 +31,8 @@ Context.memlen = 0
 Context.parent = {} -- {write = function (_, v) print(v) end, up = print}
 
 Context.caller = nil
+Context.hpos = 1
+
 ---@TODO (for memory cleaning, after VM rewrite) add owner ?
 function Context:new(t, arrlen, memlen)
     t = getmetatable(self).new(self, t or {}) --inheritance of sort (here inheriting from Proxy)
@@ -63,7 +65,7 @@ function Context:write(v)  --write a single value at the top of the Stack and re
         self.arrlen = 1;
     end
     self.arrlen = math.max(1, self.arrlen)  ---@TODO check whether good/necessary or whether it'd be better to error.
-    self.top = v
+    self.head = v
     return self
 end
 function Context:rawPeek(n)
@@ -97,7 +99,7 @@ end
 --    self.top = Array(r)
 --end
 function Context:__len()
-    return self.arrlen
+    return self.hpos
 end
 --Context.__shl = Context.push
 --Context.__shr = Context.write
@@ -140,7 +142,7 @@ function Context:_defaultGettersFactory()
         parent = self,
         caller = self,
         --proxy (pseudo) fields
-        top = function (stack) return rawget(stack, #stack) end,
+        head = function (stack) return rawget(stack, #stack) end,
         ---@TODO
         --proxy register fields
         --the size of the last litteral array. Needs to be a stack itself I'm afraid.
@@ -167,7 +169,7 @@ function Context:_defaultSettersFactory()
         parent = self,
         caller = self,
         --proxy fields
-        top = function (stack, _top, v) rawset(stack, #stack, v) end,
+        head = function (stack, _top, v) rawset(stack, #stack, v) end,
     }, {__index = function (_, k)
         if type(k) == 'number' then return __index else
             error(("Context index %s invalid"):format(k), 2) end

@@ -33,6 +33,7 @@ Context.parent = {} -- {write = function (_, v) print(v) end, up = print}
 
 Context.caller = nil
 Context.hpos = 1
+Context[0] = Context
 
 ---@TODO (for memory cleaning, after VM rewrite) add owner ?
 function Context:new(t)
@@ -112,6 +113,10 @@ function Context:__tostring()
     return r .. "}"
 end
 
+local function rawgetWrap()
+    return rawget
+end
+
 function Context:_defaultGettersFactory()
     local function __index (stack, k)
         if type(k) ~= 'number' then ---@TODO should never happen, remove
@@ -134,11 +139,11 @@ function Context:_defaultGettersFactory()
         --pack = self,
         validTypes = self,
         --fields
-        memlen = self,
-        arrlen = self,
-        hpos   = self,
-        parent = self,
-        caller = self,
+        memlen = rawget, --self,
+        arrlen = rawget, --self,
+        hpos   = rawget, --self,
+        parent = rawget, --self,
+        caller = rawget, --self,
         --proxy (pseudo) fields
         head = function (stack) return rawget(stack, stack.hpos) end,
         ---@TODO
@@ -163,11 +168,11 @@ function Context:_defaultSettersFactory()
     end
     self._defaultSetters = setmetatable({
         --fields
-        memlen = self,
-        arrlen = self,
-        hpos   = self,
-        parent = self,
-        caller = self,
+        memlen = rawset, -- self,
+        arrlen = rawset, -- self,
+        hpos   = rawset, -- self,
+        parent = rawset, -- self,
+        caller = rawset, -- self,
         --proxy fields
         head = function (stack, _head, v) rawset(stack, stack.hpos, v) end,
     }, {__index = function (_, k)
@@ -181,7 +186,7 @@ Proxy(Context)
 Context()  --initializing by creating an empty Context
 Context.__call = nil   --removing an undesired metamethod.
 Context.parent = Context:new(Context.parent)
-rawset(Context.parent, 'parent', Context.parent)
+--rawset(Context.parent, 'parent', Context.parent)
 
 ---@alias ContextGenerator fun(self:Proxy, t?:table):Context    --, arrlen?:number, memlen?:number
 ---@diagnostic disable-next-line: cast-type-mismatch

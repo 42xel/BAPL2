@@ -63,6 +63,9 @@ local Run = {
             end})), sep)
     end
 }
+local function isFunction(f)
+    return type(f) == 'table' and f._fun   ---@TODO to refine
+end
 function Run:new(code, run)
     run = run or {}
     run.code = code or run.code or self.code or {}
@@ -121,7 +124,7 @@ function Run:new(code, run)
                 Trying to pop %s values
                 from stack %s
                 whose head is at position %s]]):format(tonumber(pc), n, pt(stack), stack.hpos))
-                trace:push(stack.hpos .. '  --> ' .. concat(stack, nil, stack.hpos - n + 1))
+                trace:push(stack.hpos .. '  --> ' .. concat(stack, nil, stack.hpos - n + 1, stack.hpos))
                 --trace:push(pt(stack):gsub('[\n\t]', ' ') .. '')
 
                 return rawpop(stack, n)
@@ -134,7 +137,7 @@ function Run:new(code, run)
                 Trying to pop %s values
                 from stack %s
                 whose head is at position %s]]):format(tonumber(pc), n, pt(stack), stack.hpos))
-                trace:push(stack.hpos .. '  -<> ' .. concat(stack, nil, stack.hpos - n + 1))
+                trace:push(stack.hpos .. '  -<> ' .. concat(stack, nil, stack.hpos - n + 1, stack.hpos))
                 return rawpeek(stack, n)
             end
         end
@@ -188,8 +191,9 @@ function Run:new(code, run)
             c_eq  = function() local a, b = peek(stack, 2) ; stack[stack.hpos - 1] = b; write(stack, a == b and 1 or 0) end,
             c_neq = function() local a, b = peek(stack, 2) ; stack[stack.hpos - 1] = b; write(stack, a ~= b and 1 or 0) end,
 
-            block = function() pc = pc + 1
-                stack, stack.parent = Context:new({memlen = code[pc]}), stack
+            block = function() pc = pc + 1 ; local oldStack = stack
+                stack = Context:new{memlen = code[pc]}
+                stack.parent = oldStack
             end,
             ---@TODO ponder a while when reimplementing the vm in a lower level language as a register machine
             ---@TODO ponder 0 or 1 index
@@ -228,15 +232,19 @@ function Run:new(code, run)
             end,
             brek  = function()
                 assert(stack.hpos == 1, "Incorrect Stack head position upon break:\n" .. tostring(stack) .. "\t len:\t" .. stack.hpos)
-                stack.parent:write(stack[0])
+                write(stack.parent, (stack[0]))
                 stack = stack.parent
             end,
             ret   = function()
-                if stack.arrlen == 0 then
+                if rawlen(stack) == 0 then
                     stack.parent:clean()
-                    return true
+                return true
                 end
                 assert(stack.hpos == 1, "Incorrect Stack head position upon return:\n" .. tostring(stack) .. "\t len:\t" .. stack.hpos)
+                if not stack.parent then
+                    --print("toplevel")
+                    return true
+                end
                 local s = stack.parent.hpos
                 if s == 0 then
                     print("ret: warning head position was zero")
@@ -247,8 +255,7 @@ function Run:new(code, run)
                 stack.parent.hpos = s
                 return true
             end,
-            --ret   = function() return assert(stack.hpos == pStack0, "Incorrect Stack height upon return:\n" .. tostring(stack) .. "\t len:\t" .. stack.hpos .. "\t pStack0:\t" .. pStack0) end,
-            call  = function() run(stack.head) end, ---@TODO TODO
+            call  = function() assert(isFunction(stack.head), "call: not a function:\t" .. tostring(stack.head)) ; run(stack.head) end, ---@TODO TODO
         }
         setmetatable(run.switch, {__index = function()
                 print(trace and trace:unpack())

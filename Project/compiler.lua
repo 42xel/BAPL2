@@ -276,6 +276,8 @@ function metaCompiler:new(r)
         ---@param self Compiler
         function self:__call(ast)
             self:codeGen(ast)
+            self:addCode'ret'
+            self.code._fun = true
             return self.code
         end
     end
@@ -552,7 +554,8 @@ end
 ---The top level __call metamethod also has a check for global variables which are used whitout being ever initialized
 function metaCompiler:__call(ast)
     self:codeGen(ast)
---    for k, v in pairs(self.vars) do
+    self:addCode'ret'
+            --    for k, v in pairs(self.vars) do
 --        if type(k) == 'string' and self.vars[v] ~= k then
 --            print(("Warning, global variable `%s` is used but never initialized"):format(k))
 --        end

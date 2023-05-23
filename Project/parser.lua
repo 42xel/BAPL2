@@ -1,7 +1,6 @@
----@TODO remove exp_ and stat_ prefixes
 ---@TODO vague floating idea : make code from AST. Put comments/annotations in AST
 ---enables pretty print, automatic documentation, helps introspection, debugging, reflexivity.
----helps changing syntax.
+---helps transpiling while changing syntax.
 local pt = require "pt".pt
 local lpeg = require "lpeg"
 
@@ -19,7 +18,6 @@ local nodeReturn = Node.nodeReturn
 
 require "utils"
 
---TODO : use _ENV to put in a module. to call, for example, _ENV = require "require"
 local P = lpeg.P
 local S = lpeg.S
 local R = lpeg.R
@@ -66,13 +64,10 @@ local blockComment = "'{" * (P(1) - "'}")^0 * "'}"
 local lineComment = "'" * (P(1) - "\n")^0
 local comment = blockComment + lineComment
 local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
----@TODO put spaces inside the grammar
---local ws = V'ws'
---local ws = V'ws_'
+
 local ws = newLine + locale.space + comment    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
----@TODO think about what a token is and isn''t, and about spacing (operators probably aren''t token)
 --token generator
 local function T_(token)
     return token * ws_
@@ -83,8 +78,8 @@ end
 --end
 
 ---@TODO ponder whether they should be, empty statements, list of statements, etc. Probably still no.
-local semicolon_ = T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!")
-local semicolons_ = T_";"^0
+--local semicolon_ = T_";"^-1 * (- T_";" + err"useless semi-colons are not allowed, you peasant!")
+--local semicolons_ = T_";"^0
 
 
 local function numeralCapture(digit, comma)
@@ -118,7 +113,7 @@ local alnum = locale.alnum
 
 --spaces
 ---@TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
----@TODO : use doo/doone/doon't for block comments ? Answer : no, it's moronic and conflicts violently with getting rid of keywords, unless you go full functional curry, which I won't.
+---@TODO : use doo/doone/doon't for blocks and comment block ? Answer : no, it's moronic and conflicts violently with getting rid of keywords, unless you go full functional curry, which I won't.
 
 ---@TODO alleviate the need for reserved words (still have special words)
 local Rw_ = setmetatable({
@@ -129,7 +124,7 @@ local Rw_ = setmetatable({
     "goto",
     "while",
     "new",
-    "Array",    ---@TODO (after function and OO) : alternative way to declare Arrays, to eventually replace `new` keyword
+--    "Array",    ---@TODO (after function and OO) : alternative way to declare Arrays, to eventually replace `new` keyword
 },{__call = function(self, word)
     return self[word]
 end,
@@ -153,18 +148,22 @@ end
 local ID = Cmt((alpha + '_') * (alnum + '_')^0, function (_, p, w)
     return rawget(Rw_, w) == nil, w
 end)
-local var = ID / Node{tag = 'variable', "var"}
---??add prefix here
+---@TODO add `?` prefix meaning in the instance call environment, containing the arguments of a function
+local varPrefix = "~" * Cc(-1)  --global
+    + "?" * Cc(-2)
+    + "." * C(P"."^0) / string.len  --local
+    + Cc(nil)   --implicit (to be dedueced by the compiler)
+local var = varPrefix * ID / Node{tag = 'variable', 'prefix', 'var'}
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
----expressions and statements
+---expressions and statements"."
 
 local _parenNames = {
     ["("] = "parentheses",
     ["["] = "bracket",
     ["{"] = "brace",
 }
----@TODO also checks for extra closing ones ? (maybe not here).
+---@TODO also checks for extra closing ones and relevant error message ? (maybe not here).
 local function paren_ (op, patt, cl, pattName, bname)
     bname = bname or _parenNames[op]
     return T_(op) * patt * (T_(cl) + err(pattName .. ": missing closing " .. bname .. "."))
@@ -188,13 +187,11 @@ The logic is the same as pointers in C/C++ : a is assigned to the value such tha
 
 TODO add anonymous statements : `(#= exp)`
 
-TODO : add  chaining `#` syntax. As lhs :
-`a## = exp` is equivalent to `a # = (#= exp)`<br>
+a## = exp` is equivalent to `a # = (#= exp)`<br>
 As rhs : `a##` is equivalent to `(a#)#` (should be free ?)
 ]]
 local fun_ = Cf(V'indexed_' * T_(C"#")^1, Node{tag = "fun", "ref"})  --function calls
 
----@TODO : make every statement expression.
 -- a list of constructs useable to build expression, from highest to lowest priority.
 -- in my understanding, priority order is really only needed for pattern needing disambiguation, such as infix op pattern.
 local exp_ = Stack{'seqs_', --'exp_',
@@ -256,8 +253,8 @@ exp_.formula_ = V(#exp_)
 ---expressions
 
 --array creation
----@TODO add [2,3,4] for flat multidimensional arrays ?
----@TODO remove useless keyword or switch to manual memory management
+---@TODO add [2,3,4] for flat multidimensional arrays ? Pit bottom prio, but slice indexing in general is a cool feature indeed
+---@TODO remove useless keyword or switch to manual memory management (to each new correspond a delete, and any dynamic memory allocation needs a new)
 --exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
 --- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
 ---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
@@ -278,11 +275,9 @@ exp_.if_ = Rw_"if" * V'assign_' * (T_";" * _errNoSC + 0) * V'assign_' *
     Node{tag = 'if', "cond", "then", "else"}
 exp_.while_ = Rw_"while" * V'assign_' * V'assign_' / Node{tag = 'while', 'cond', 'stat'}
 
----@TODO remove
 exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / nodeReturn
 --exp_.return_ = Rw_"return" * Cc(Node.empty)
 --exp_.break_ = Rw_"break" * (V'exp_' + Cc(nil)) / Node{tag = 'break', "exp"}
----@TODO remove return
 --- using named pattern variable is not a necessity, here, it could have been a big sum, but it's better for organization, and it's more modular if I want to add only some patterns as LHS for example.
 ---A pure atomic expression in the sense of expressing a single value (compares with sequences and lists)
 exp_. exp_ = (false
@@ -330,10 +325,20 @@ do
         assign = true,
         fun = true,
     }
-    exp_.lhs_ = Cmt(false
+    exp_.lhs_ = Cmt(false --TODO add more
         + fun_
-        + V'ref_' --TODO add more
+        + V'ref_'
         + V'group_'
+--[[
+Ideal behavior (enables default arguments) :
+R-evaluates rhs, L-evaluates lhs, lazy assign, clean the lhs part of the stack.
+
+Pbtq : rhs is potentially computed at once, with dynamical size, so I can't just statically break asignemnt with list lhs into a list of assignements.
+- Sol 1 : first evaluate lhs + new instruction combine with dynamic move (opInstruction mv_d) ? Probably no as I kind of want to evaluate rhs first in general. 
+
+TODO how does it relates to function loading ?
+
+]]
 --        + V'list_'
         ,
         function (_, _, lhs)
@@ -368,7 +373,7 @@ local filePatt =
 local function parse (input)
     local r = filePatt:match(input)
     assert(r, "whatever error message there should be")
-    return nodeReturn(nodeBlock(r))
+    return r-- nodeReturn(nodeBlock(r))
 end
 --------------------------------------------------------------------------------
 return parse

@@ -1,0 +1,4 @@
+f()# = 5
+@ = f() #
+
+@ = f # 'should probably error ? Maybe not

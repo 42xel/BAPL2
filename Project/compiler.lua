@@ -460,6 +460,10 @@ function metaCompiler:new(r)
             ---@TODO Ideally, left hand side should be compiled before rhs and we'd be done
             r:new{ctx = r.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
 
+            --checking the parameters are well formatted.
+            --they should be a list of ID or (ID = exp)
+            --ast.params
+
             local func = Context:new(r:new{ctx = r.ctx}(ast.exp))
             codeGen(state, nodeAssign(ast.lhs.ref, Node{tag = 'func', 'static'}(func)))
         end * Cargs(2),

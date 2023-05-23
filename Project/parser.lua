@@ -178,22 +178,8 @@ local ref_ = T_"@" / Node{tag = 'io'}
     + indexed_
     --Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{tag = 'indexed', 'ref', 'index'})
 
---[[
-    function pattern
-```
-a # = exp
-```
-Means `a` is assigned to a function that yields `exp`.
-The logic is the same as pointers in C/C++ : a is assigned to the value such that `a#` evaluates to `exp`.
 
-TODO add anonymous statements : `(#= exp)`
-
-a## = exp` is equivalent to `a # = (#= exp)`<br>
-As rhs : `a##` is equivalent to `(a#)#` (should be free ?)
-]]
-local fun_ = Cf(V'indexed_' * T_(C"#")^1, Node{tag = "fun", "ref"})  --function calls
-
--- a list of constructs useable to build expression, from highest to lowest priority.
+-- We build formula by listing subconstructs, from highest to lowest priority.
 -- in my understanding, priority order is really only needed for pattern needing disambiguation, such as infix op pattern.
 local exp_ = Stack{'seqs_', --'exp_',
     ws_ = ws_,
@@ -201,7 +187,6 @@ local exp_ = Stack{'seqs_', --'exp_',
     ref_ = ref_,
     --an expressions or expression sequence delimited by parntheses
     group_ = paren_("(", V'seqs_',")", "group"),
-    fun_ = fun_,
 }
 
 --------------------------------------------------------------------------------
@@ -327,7 +312,7 @@ do
         fun = true,
     }
     exp_.lhs_ = Cmt(false --TODO add more
-        + fun_
+        + V'fun_'
         + V'ref_'
         + V'group_'
 --[[
@@ -351,6 +336,34 @@ TODO how does it relates to function loading ?
         end
     )
 end
+
+--small parenthese to talk about functions, since there definition involve assignement-like and sequences
+---@TODO see if more things make sense. Actually let's make it all right away. Delete this
+---using parentheses to stay consistent as comma is of higher prio than equal.
+--local funarg =  paren_("(", ID * V'ws_' * T_"=" * V(#exp_ + 1) / nodeAssign,")", "Function parameter") + ID * V'ws_' / Node{tag = 'variable', 'var'}
+--local funargs = paren_("(", seq(funarg, T_",", false, 'parameters', 'parameters'), ")", "Function parameters")
+
+--[[
+    function pattern
+```
+a # = exp
+```
+Means `a` is assigned to a function that yields `exp`.
+The logic is the same as pointers in C/C++ : a is assigned to the value such that `a#` evaluates to `exp`.
+
+TODO add anonymous statements : `(#= exp)`
+
+T_(C"#")^1 allows to fold but is itself never captured
+a## = exp` is equivalent to `a # = (#= exp)` (and is kind of free) <br>
+As rhs : `a##` is equivalent to `(a#)#` (should be free ? yes it is)
+
+
+]]
+local fun_ = Cf(V'indexed_' * ((V'group_' + Cc(nil)) * T_"#")^1,
+    Node{tag = 'fun', 'ref', 'params'})
+exp_.fun_ = fun_
+
+
 exp_:push(V'lhs_' * T_"=" * V(#exp_ + 1) / nodeAssign + V(#exp_))
 exp_.assign_ = V(#exp_)
 ---a juxtaposed sequence of lists and assignements. Comment out to make semi colons mandatory.

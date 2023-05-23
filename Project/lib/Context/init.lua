@@ -1,4 +1,4 @@
----@alias ContextElement number|table|nil
+---@alias ContextElement number|Context|nil
 --local pt = require "pt".pt
 --local Array = require "Array"
 local Proxy = require "Proxy"
@@ -36,6 +36,8 @@ Context.hpos = 1
 Context[0] = Context
 
 ---@TODO (for memory cleaning, after VM rewrite) add owner ?
+---@param t? {arrlen?: number, hpos?: number, memlen?: number}
+---@return Proxy
 function Context:new(t)
     t = getmetatable(self).new(self, t or {}) --inheritance of sort (here inheriting from Proxy)
 
@@ -53,6 +55,18 @@ function Context:new(t)
     --t.caller = self   --caller ccorresponds to `caller \ callee` ?
 
     return setmetatable(t, self)
+end
+
+function Context:cpy(t)
+    --t.arrlen = t.arrlen or self.arrlen
+    --t.hpos = t.hpos or self.hpos
+    --t.memlen = t.memlen or self.memlen
+    --t.parent = t.parent or self.parent
+    t = t or {}
+    for key, value in pairs(self) do
+        t[key] = rawget(t, key) or value
+    end
+    return Context:new(t)
 end
 
 function Context:push(...)   --pushes one or several values to the stack and returns self, for chaining
@@ -113,10 +127,6 @@ function Context:__tostring()
     return r .. "}"
 end
 
-local function rawgetWrap()
-    return rawget
-end
-
 function Context:_defaultGettersFactory()
     local function __index (stack, k)
         if type(k) ~= 'number' then ---@TODO should never happen, remove
@@ -138,12 +148,15 @@ function Context:_defaultGettersFactory()
         clean = self,
         --pack = self,
         validTypes = self,
+        cpy = self,
         --fields
         memlen = rawget, --self,
         arrlen = rawget, --self,
         hpos   = rawget, --self,
         parent = rawget, --self,
         caller = rawget, --self,
+        func   = rawget, --self,
+        _fun   = rawget, --self, --a flag to know whether the context is a function
         --proxy (pseudo) fields
         head = function (stack) return rawget(stack, stack.hpos) end,
         ---@TODO
@@ -173,6 +186,8 @@ function Context:_defaultSettersFactory()
         hpos   = rawset, -- self,
         parent = rawset, -- self,
         caller = rawset, -- self,
+        func   = rawset, --self,
+        _fun   = rawset, --self, --a flag to know whether the context is a function
         --proxy fields
         head = function (stack, _head, v) rawset(stack, stack.hpos, v) end,
     }, {__index = function (_, k)
@@ -188,9 +203,9 @@ Context.__call = nil   --removing an undesired metamethod.
 Context.parent = Context:new(Context.parent)
 --rawset(Context.parent, 'parent', Context.parent)
 
----@alias ContextGenerator fun(self:Proxy, t?:table):Context    --, arrlen?:number, memlen?:number
----@diagnostic disable-next-line: cast-type-mismatch
----@cast Context ({new: ContextGenerator})
+----@alias ContextGenerator fun(self:Proxy, t?:table):Context    --, arrlen?:number, memlen?:number
+----@diagnostic disable-next-line: cast-type-mismatch
+----@cast Context ({new: ContextGenerator})
 
 ---@diagnostic disable-next-line: param-type-mismatch
 return Context

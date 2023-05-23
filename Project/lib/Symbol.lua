@@ -3,13 +3,6 @@
 
 local metaSymbol = {
     __name = "Symbol",
-    __call = function(self, key)
-        return setmetatable({label = key}, getmetatable(self))
-    end,
-    __index = function(self, key)
-        self[key] = self(key)
-        return self[key]
-    end,
     --[[depending on what it used for key, 'k' is important.
     
 'v' is a pretense of efficiency : rather than declaring mySymbole={} on a large enough scope and holding to it, 
@@ -18,6 +11,18 @@ It's a pretense because the gain is negligible compared to even the size of the 
     ]]
     __mode = 'kv',
 }
+
+function metaSymbol:__call (key)
+    return setmetatable({label = key}, getmetatable(self))
+end
+function metaSymbol:__index (key)
+    self[key] = self(key)
+    return self[key]
+end
+function metaSymbol:__tostring ()
+    return metaSymbol.__name .. ":\t" .. tostring(self.label)
+end
+
 
 --------------------------------------------------------------------------------
 --returns a guaranteed unique key.

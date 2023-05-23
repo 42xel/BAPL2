@@ -197,10 +197,14 @@ function Run:new(code, run)
             end,
             ---@TODO ponder a while when reimplementing the vm in a lower level language as a register machine
             ---@TODO ponder 0 or 1 index
-            ---@diagnostic disable-next-line: param-type-mismatch
-            new = function() stack.head = Context:new({arrlen = stack.head}) end,
-            ---@diagnostic disable-next-line: param-type-mismatch
-            c_new = function() local size = peek(stack) ; stack.head = Context:new({arrlen = stack.head}) ; push(stack, size) end,
+            ---@TODO make error when arrlen is not a number
+            new = function() stack.head = Context:new({arrlen = tonumber(stack.head)}) end,
+            ---@TODO make error when arrlen is not a number
+            c_new = function()
+                local size = peek(stack)
+                stack.head = Context:new({arrlen = tonumber(stack.head)})
+                push(stack, size)
+            end,
             set = function() local a, k, v = pop(stack, 3)
                 assert(type(k) == 'number' and 0 < k and k <= a.arrlen,
                     ("set(Array, ?, ?) : index invalid or out of bound: %s for array %s of size %d"):format(k, a, a.arrlen) )
@@ -232,18 +236,22 @@ function Run:new(code, run)
             end,
             brek  = function()
                 assert(stack.hpos == 1, "Incorrect Stack head position upon break:\n" .. tostring(stack) .. "\t len:\t" .. stack.hpos)
+                if not stack.parent then
+                    --print("toplevel")
+                    return true
+                end
                 write(stack.parent, (stack[0]))
                 stack = stack.parent
             end,
             ret   = function()
-                if rawlen(stack) == 0 then
-                    stack.parent:clean()
-                return true
-                end
                 assert(stack.hpos == 1, "Incorrect Stack head position upon return:\n" .. tostring(stack) .. "\t len:\t" .. stack.hpos)
                 if not stack.parent then
                     --print("toplevel")
                     return true
+                end
+                if rawlen(stack) == 0 then
+                    stack.parent:clean()
+                return true
                 end
                 local s = stack.parent.hpos
                 if s == 0 then
@@ -255,7 +263,18 @@ function Run:new(code, run)
                 stack.parent.hpos = s
                 return true
             end,
-            call  = function() assert(isFunction(stack.head), "call: not a function:\t" .. tostring(stack.head)) ; run(stack.head) end, ---@TODO TODO
+            bindFunc = function ()  ---@TODO : split into copy and bind, and use bind for other shenanigans ?
+---@diagnostic disable-next-line: param-type-mismatch
+                stack.head = stack.head:cpy()
+                stack.head[0] = stack
+            end,
+            call  = function()
+                assert(isFunction(stack.head), "call: not a function:\t" .. tostring(stack.head))
+
+---@diagnostic disable-next-line: param-type-mismatch
+                run(stack.head:
+                    cpy())
+            end, ---@TODO TODO
         }
         setmetatable(run.switch, {__index = function()
                 print(trace and trace:unpack())
@@ -283,10 +302,6 @@ function Run:run()
     local r = self.stack
     return r
 end
---setmetatable(Run, {__call = function (self, code, run)
---    run = Run:new(code, run)
---    return run:run()
---end})
 --------------------------------------------------------------------------------
 
 return Run:new()

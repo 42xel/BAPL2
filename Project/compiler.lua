@@ -16,13 +16,15 @@ local Symbol = require"Symbol"
 
 local Node = require"ASTNode"
 local nodeAssign = Node.nodeAssign
+local nodeNum = Node.nodeNum
 
 --local utils =
  require "utils"
 local Promise = require "Promise"
 --local Proxy = require "Proxy"
 
---local parse = require "parser"
+local Context = require"Context"
+
 
 local P = lpeg.P
 local S = lpeg.S
@@ -120,32 +122,52 @@ function Compiler:invalidAst(ast)
     error("invalid ast : " .. pt(ast), 2)
     return self, ast
 end
----@TODO maybe remove the warning, because of functions ?
-function Compiler:getVariable(ast, vars)
+function Compiler:getVariable(ast, vars, lhs)
     local ctx = self.ctx
-    --print("Compiler:getVariable() 0:\t", ast.var, ast.prefix, pt(ctx), pt(vars))
-    if not ast.prefix then
-        ast.prefix = 0
-        --print("Compiler:getVariable() 1:\t", ast.var, ast.prefix, pt(ctx))
-    end
-    for _ = 1, ast.prefix do
-        ctx = ctx.parent
-        --print("Compiler:getVariable() 2:\t", ast.var, ast.prefix, pt(ctx))
-    end
-    while not rawget(ctx, ast.var) do
-        ast.prefix = ast.prefix + 1
-        ctx = rawget(ctx, 'parent')
-        --print("Compiler:getVariable() 3:\t", ast.var, ast.prefix, pt(ctx))
-        if not ctx then --not found : global (easier than to redo all the tests to require declaration ?)
-            ast.prefix = - 1
-            self:addCode(ast.prefix)
-            return self:addCode(- vars[ast.var])
+    local varID
+    if ast.prefix == - 1 then
+        ctx = vars
+    elseif ast.prefix == -2 then
+        ctx = ctx[Symbol['caller']]
+    elseif ast.prefix then
+        for _ = 1, ast.prefix do
+            ctx = ctx[Symbol['parent']]
         end
-    end
-    --print("Compiler:getVariable() 4:\t", ast.var, ast.prefix, pt(ctx))
+    elseif not ast.prefix then  --no prefix : let's figure out what context it refers to
+        --trying local context
+        ast.prefix = 0
+        varID = rawget(ctx, ast.var)
+        if varID then
+            goto varIDdone
+        end
+        --trying function argument
+        if ctx[Symbol['caller']] then
+            varID = rawget(ctx[Symbol['caller']], ast.var)
+            if varID then
+                ast.prefix = - 2
+                ctx = ctx[Symbol['caller']]
+                goto varIDdone
+            end
+        end
+        --trying above contexts
+        while ctx do
+            varID = rawget(ctx, ast.var)
+            if varID then
+                goto varIDdone
+            end
+            ast.prefix = ast.prefix + 1
+            ctx = ctx[Symbol['parent']]
+        end
+        --not found : global
+        ast.prefix = - 1
+        ctx = vars
+    else error(("invalid prefix (%s) for variable `%s` in static contexts %s and %s"):format(ast.prefix, ast.var, pt(self.ctx), pt(ctx))) end    --should not happen
+    varID = assert(lhs and ctx[ast.var] or rawget(ctx, ast.var),    --potentially creating the variable if lhs.
+        ("variable `%s` not found (potentially used before definition) in static context:\t%s"):format(ast.var, pt(ctx)))
+    ::varIDdone::
     self:addCode(ast.prefix)
-    return self:addCode(- ctx[ast.var])
---    return self:addCode(assert(rawget(self.vars, ast.var), ("Variable used before definition:\t%s at opCode line:\t%s.\nAST:\t%s"):format(ast.var, #self.code, pt(ast)))
+    self:addCode(- varID)
+    return self, ast
 end
 
 --[[
@@ -325,16 +347,22 @@ function metaCompiler:new(r)
     do
         local cmp = self
         local varsn = Symbol['varsn']
+        local S_parent = Symbol['parent']
+        local S_caller = Symbol['caller']
         function Cmpctx:__index (key)
+            if type(key) ~= 'number' and type(key) ~= 'string' then
+                return
+            end
             self[key] = self[varsn]
             self[self[varsn] ] = r.vars[key]
             self[varsn] = self[varsn] + 1
             return self[key]
         end
-        function Cmpctx:new (t, parent)
-            t = t or {}
+        function Cmpctx:new (t, parent, caller)
+            t = t or { [''] = 0 }    --empty var name refer to the context itself
             t [varsn] = 1
-            t.parent = parent or cmp.ctx
+            t[S_parent] = parent or cmp.ctx
+            t[S_caller] = caller
             return setmetatable(t, self)
         end
         function Cmpctx:__len() --should be the same as rawlen,
@@ -399,7 +427,7 @@ function metaCompiler:new(r)
         variable = Cargs(2) * Cc'exp' / subCodeGen * Cc'store' / c_addCode / function(state, ast)
             --state.vars[state.vars[ast.lhs.var]] = ast.lhs.var ; --mark the variable as having an initializer
             --addCode(state, state.vars[ast.lhs.var])
-            getVariable(state, ast.lhs, r.vars)
+            getVariable(state, ast.lhs, r.vars, true)
         end * Cargs(2),
         --[[
         I feel it's important to compile the lhs before the expression to assign.
@@ -412,7 +440,7 @@ function metaCompiler:new(r)
         ]]
         indexed = Cargs(2) / function (state, ast)
             ---@TODO For much later : think about binding or trick like lua's obj:method, and how to make sort of currification, so that it's not just for the last field.
-            subCodeGen(state, ast.lhs, 'ref') ---@TODO (done already?) think about fields, arrays of arrays...
+            subCodeGen(state, ast.lhs,'ref') ---@TODO (done already?) think about fields, arrays of arrays...
             addCode(state, 'up')
             subCodeGen(state, ast.lhs, 'index')
             addCode(state, 'up')
@@ -427,8 +455,13 @@ function metaCompiler:new(r)
         end,
         --TODO group and list
 
-        fun = Cargs(2) / function (state, ast)
-            codeGen(state, nodeAssign(ast.lhs.ref, Node.nodeNum(r:new()(ast.exp)) ))
+        fun = Cargs(2) / function (state, ast) ---@TODO TODO
+            --a bad way to handle recursivity : we expand the lhs in a dummy code
+            ---@TODO Ideally, left hand side should be compiled before rhs and we'd be done
+            r:new{ctx = r.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
+
+            local func = Context:new(r:new{ctx = r.ctx}(ast.exp))
+            codeGen(state, nodeAssign(ast.lhs.ref, Node{tag = 'func', 'static'}(func)))
         end * Cargs(2),
         [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
     }
@@ -447,7 +480,10 @@ function metaCompiler:new(r)
         variable = Cargs(2) * Cc'load' / c_addCode * Cc(r.vars) / getVariable,
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
+        --a function call
         fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
+        --The dynamic binding part of a function declaration (copying and binding the function to the environement it is created)
+        func = Cargs(2) * Cc'write' / c_addCode * Cc'static' / addCodeField * Cc'bindFunc' / c_addCode,
         --I should be able to write newarray higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
         new = Cargs(2) / newArray,
 --        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.

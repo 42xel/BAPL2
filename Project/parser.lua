@@ -152,8 +152,9 @@ end)
 local varPrefix = "~" * Cc(-1)  --global
     + "?" * Cc(-2)
     + "." * C(P"."^0) / string.len  --local
-    + Cc(nil)   --implicit (to be dedueced by the compiler)
-local var = varPrefix * ID / Node{tag = 'variable', 'prefix', 'var'}
+local var = (varPrefix * (ID + C"")
+    + Cc(nil) * ID ) --no prefix : implicit (to be deduced by the compiler)
+    / Node{tag = 'variable', 'prefix', 'var'}
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 ---expressions and statements"."

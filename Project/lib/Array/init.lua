@@ -1,3 +1,4 @@
+---mostly deprecated, but Context still use Array's tostring when relevant.
 local pt = require "pt".pt
 
 if _INTERPRETER_MAX_ARRAY_DEPTH == nil then

@@ -1,5 +1,5 @@
-add((a =1 ), b=1) # = a + b
+add ( (a =1), (b=1) ) # = a + b
 'beware, comma has higher priority than equal, so parentheses are needed.
-'Well except for the last argument.
 
 @=add(43,6)#
+@=add #

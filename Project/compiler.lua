@@ -307,28 +307,6 @@ function metaCompiler:new(r)
     r = r or {}
     r.code = r.code or Stack{}
 
---[[old vars
-    r.vars = r.vars or self.vars
-    if not r.vars then
-        local varsn = Symbol['varsn']
-        r.vars = setmetatable({[varsn] = 1},{
-            __index = function(vars, key)
-                vars[key] = vars[varsn]
---                vars[vars[varsn] ] = key
-                vars[varsn] = vars[varsn] + 1
-                return vars[key]
-            end,
-        })
-    end
-    --A  table of labels and their numerical position
-    labels = setmetatable({},{
-        __index = function (self, key)
-            self[key] = Promise:new()
-            return self[key]
-        end,
-    })
-]]
-
     ---a dictionnary of all variable ids
     ---``` {[name : string] = nameID : number} ```
     r.vars = r.vars or self.vars
@@ -352,7 +330,7 @@ function metaCompiler:new(r)
         function Cmpctx:__index (key)
             if type(key) ~= 'number' and type(key) ~= 'string' then
                 return
-            end
+            end ---@TODO add to the global dictionary as well ? mostly useful for dynamical binding.
             self[key] = self[varsn]
             self[self[varsn] ] = r.vars[key]
             self[varsn] = self[varsn] + 1
@@ -418,7 +396,7 @@ function metaCompiler:new(r)
     ---expands an assignement, depending on its left hand side's tag.
     ---@TODO split eval of RHS and assignement ; make eval of RHS always happen first.
     ---@type fun(lhs_tag : string, state : Compiler, ast : table): Compiler, table
-    --[[@TODO see if you want to keep variables as a disinct lhs from indexed.<br>
+    --[[@TODO see if you want to keep variables as a distinct lhs from indexed.<br>
     Probably yes, because they can be loaded into a static region of memory and more easily accessed.<br>
     Besides, allocation of custom objects may make things even worse.
     ]]
@@ -460,9 +438,20 @@ function metaCompiler:new(r)
             ---@TODO Ideally, left hand side should be compiled before rhs and we'd be done
             r:new{ctx = r.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
 
-            --checking the parameters are well formatted.
+            --checking the parameters are well formatted and declaring them
             --they should be a list of ID or (ID = exp)
+            --as we go through the list, make sure we'll eval them and put them in default value
             --ast.params
+            -- f# : $nil
+            -- f()# : void
+            -- f(a) : variable, 
+            -- f(a=1) : assign, whose lhs is variable, 
+            -- f(a,b) : list, whose elements(exps) are variable, 
+            -- f((a=2),(b=3)) : list, whose elements(exps) are assign whose lhs are variable, 
+            -- f(a,b=4) : list, mix of the two above.
+
+            --info to retrieve : number of parameters
+            --name of parameters corespondance : new to put in a local, parentless ctx (hte static caller of the function to build ?), existing to retrieve in lexical context
 
             local func = Context:new(r:new{ctx = r.ctx}(ast.exp))
             codeGen(state, nodeAssign(ast.lhs.ref, Node{tag = 'func', 'static'}(func)))

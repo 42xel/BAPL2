@@ -1,3 +1,4 @@
+---@deprecated see Context
 ---@alias IntStackElement number|table|nil
 --local pt = require "pt".pt
 local Array = require "Array"
@@ -129,6 +130,7 @@ Proxy(IntStack)
 IntStack()  --initializing by creating an empty stack
 IntStack.__call = nil   --removing an undesired metamethod.
 
+---@deprecated
 ---@diagnostic disable-next-line: cast-type-mismatch
 ---@cast IntStack ({new: fun(self:Proxy, t?:table):IntStack})
 ---@diagnostic disable-next-line: param-type-mismatch

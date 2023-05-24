@@ -1,3 +1,10 @@
+--[[
+Symbols are fresh values, generally to be used as keys. They are an elaborate way of doing 
+```mySymbole={}```
+with the added benaefit of
+- (optionnally) using a simily global table of symbols (which doesn't pollute the actual globl environement),
+- having a label and a __tostring metamethod.
+]]
 ---@class Symbol
 ---@field label any
 
@@ -6,7 +13,7 @@ local metaSymbol = {
     --[[depending on what it used for key, 'k' is important.
     
 'v' is a pretense of efficiency : rather than declaring mySymbole={} on a large enough scope and holding to it, 
-we can not only declare it locally, we have it allocated only when necessary.
+we have it allocated only when necessary and forgotten otherwise.
 It's a pretense because the gain is negligible compared to even the size of the key on the function call in the code.
     ]]
     __mode = 'kv',

@@ -1,16 +1,16 @@
---[[
-    Proxies are common place in prototypal OO.
-    However, they're more of a design patern than a precise conept I could generically implement.
-    Thus the present file is not intended to be a functioning module, but rather a test laboratory related to proxying.
-]]
-local _README = _README
 ---@alias ProxyGettersTable {[any] : table|fun(self:table,key:any):value:any}
 ---@alias ProxySettersTable {[any] : table|fun(self:table,key:any,value:any)}
 
+--[[
+    A proxy may behave as if they had certain fields and properties without actually holding them.
+    It allows many things among which privacy, sand-boxing, as well as custom setters and getters.
+
+    My present take on a
+]]
 ---@class Proxy : table
----@field _defaultGetters? ProxyGettersTable
+---@field _defaultGetters? ProxyGettersTable    --used for inheritance
 ---@field _defaultGettersFactory? fun(self:Proxy) : ProxyGettersTable   --a factory used for inheritance.
----@field _defaultSetters? ProxySettersTable
+---@field _defaultSetters? ProxySettersTable    --used for inheritance
 ---@field _defaultSettersFactory? fun(self:Proxy) : ProxySettersTable   --a factory used for inheritance.
 ---@field metaGetters? {[Proxy]: ProxyGettersTable}
 ---@field metaSetters? {[Proxy]: ProxySettersTable}
@@ -18,13 +18,11 @@ local Proxy = {__name = "Proxy"}
 --[[
     A Proxy constructor.
     
-    A proxy behaves as if they had certain fields and properties without actually holding them.
-    It allows many things among which privacy, sand-boxing, as well as custom setters and getters.
-    ]]
-    ---@param destination Proxy the resulting proxy.
+]]
+    ---@param destination? Proxy the resulting proxy.
     ---@param getters? ProxyGettersTable a table of getters. <br>Each entry behaves like an `__index` metamethod of `destination` for a specific key. In other words, `destination[missingKey]` yields, if `getters[missingKey]` is a function, `getters[missingKey](destination, missingKey)`, otherwise `getters[missingKey][missingKey]`. Great fun ensues when getters itself has an `__index` metamethod. <br> If not provided, it returns a table
     ---@param setters? ProxySettersTable a table of setters. <br>Each entry behaves like an `__newindex` metamethod of `destination` for a specific key. In other words, `destination[newKey] = value` invokes, if `setters[newKey]` is a function, `setters[newKey](destination, newKey, value)`, otherwise `setters[newKey][newKey] = value`. Great fun ensues when setters itself has an `__index` metamethod.
-    ----@return destination, getters, setters
+    ----@return Proxy, ProxyGettersTable, ProxySettersTable
 function Proxy:new(destination, getters, setters)
     self:init()
     destination = destination or {}
@@ -39,6 +37,7 @@ function Proxy:new(destination, getters, setters)
     return setmetatable(destination, self), getters, setters
 end
 local __mode = {__mode = 'k'}
+--initialize a proxy to serve as the metatable of other proxies.
 Proxy.init = setmetatable({}, {__call = function (init, proto)
 
     if init[proto] then return false end
@@ -75,7 +74,7 @@ Proxy.init = setmetatable({}, {__call = function (init, proto)
     return true
 end})
 
-function Proxy:_defaultGettersFactory()
+function Proxy:_defaultGettersFactory() --using a factory both for inheritance (self) and for freshness, so as to not have a common _defaultGetters altered by some proxy users.
     return {init = self, new = self, get = self, set = self, target = self,
         getters = function (instance) return self.metaGetters[instance] end,
         setters = function (instance) return self.metaSetters[instance] end,

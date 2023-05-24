@@ -1,3 +1,4 @@
-add(a,b) # = a + b
+incr(a = 0) # = a + 1
 
-@=add(43,6)#
+@ = incr (5) #
+@ = incr #

@@ -1,3 +1,5 @@
+---@TODO depreciate. It's more of a design pattern than something to actually derive everything from.
+--the whole beauty of lua's prototypal OO is it's freedom.
 --------------------------------------------------------------------------------
 --defining __call as a default constructor.
 ---@class Object

@@ -1,5 +1,5 @@
 @ = f = {0, 1, 1, 2, 3, 5, 8, 13,,}
-'{ I guess it errors as it probably should.
+;{ I guess it errors as it probably should.
  using this syntax to generate gaps is both inconsistent with optional trailing comma and devious as a it lets typo slip.
  so nil and gap will be written more explicitly. `()` ? `[]` ? `nil` ? _ ?
-'}
+;}

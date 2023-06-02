@@ -87,8 +87,12 @@ Node.nodeFoldBinop = Node(Node.isEmpty, 2, {1}, {2, {tag = 'binop', 'exp1'}})
 Node.nodeFoldBinopSuffix = Node{tag = 'binopSuffix', 'op', 'exp2'}
 Node.nodeUnaryop = Node{tag = 'unaryop', 'op', 'exp'}    --local nodeUnaryop = nodeGenerator(isNodeEmpty, 2, {1}, {tag = 'unaryop', "op", "e"})
 
+Node.indexed = Node{tag = 'indexed', 'ref', 'index'}
 Node.nodeAssign = Node{tag = 'assign', "lhs", "exp"}
 Node.nodeBlock = Node{tag = 'block', 'content'}
 Node.nodeReturn = Node{tag = 'return', "exp"}
+
+Node.fun = Node{tag = 'fun', 'ref', 'param'}
+--Node.funLHSparams = Node{tag = 'params', [0] = "list"}
 
 return Node

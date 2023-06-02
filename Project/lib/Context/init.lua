@@ -203,4 +203,23 @@ Context.__call = nil   --removing an undesired metamethod.
 Context.parent = Context:new(Context.parent)
 --rawset(Context.parent, 'parent', Context.parent)
 
+---A virtual context, which does not hold information itself but has a parent and a caller pointer to an actual context
+---@class VirtualContext : table : Context
+---@field parent Context
+---@field caller? Context
+local VirtualContext = setmetatable({}, {__index = Context})
+---comment
+---@param t? table|Context
+---@param parent Context
+---@param caller? Context
+---@return any
+function VirtualContext:new (t, parent, caller)
+    t = t or {}
+    t.parent = parent or t.parent
+    t.caller = caller or t.caller
+    self.__index = self.__index or self
+    return setmetatable(t, self)
+end
+Context.VirtualContext = VirtualContext
+
 return Context

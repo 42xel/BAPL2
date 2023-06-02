@@ -1,9 +1,9 @@
 a = - - 5
-@ = !0; ';;
+@ = !0; ;;;
 @ =2*-a*-2;
 @ = 0XCba
-'blabla
-; @ = p = 2^4^3 ; ' should be 2^64 (and not 16^3 = 2^12)
-''{"vuvo
-return a%3; '}
+;blabla
+; @ = p = 2^4^3 ; ; should be 2^64 (and not 16^3 = 2^12)
+;{rimogjerg
+return a%3; ;}
 b=a-4

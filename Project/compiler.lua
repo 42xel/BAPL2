@@ -23,7 +23,7 @@ local nodeNum = Node.nodeNum
 local Promise = require "Promise"
 --local Proxy = require "Proxy"
 
-local Context = require"Context"
+local Context, VirtualContext = require"Context"
 
 
 local P = lpeg.P
@@ -48,14 +48,17 @@ local Cmt = lpeg.Cmt
 --------------------------------------------------------------------------------
 ---@TODO (low prio) legible code for debug mode.
 
----@class Compiler : table
+---@class Compiler : table --,metaCompiler
 ---@field code Stack
 ---@field vars table A table of variable names and their absolute numerical index for reference.
 ---@field ctx table A table of variable names and their numerical index in the local memory, as well as correspondance to their absolute global reference.
 ---@field switch lpegSwitch The main switch. Recursively compiles the ast, depending on their tag, and returns the current compiler and AST for ease of chaining
-----@field zoo table a florilege of functions use to handle varaibles
----@field new fun (self:Compiler, t?:table) : Compiler
-local Compiler = {}
+---@field Cmpctx table a generator of static contexts (lexical block scope)
+----@field new fun (self:Compiler, t?:table) : Compiler 
+local Compiler = {
+    ---@see metaCompiler.new
+    new = nil,
+}
 
 --[[
     Adds a single literal line to the code.
@@ -122,11 +125,11 @@ function Compiler:invalidAst(ast)
     error("invalid ast : " .. pt(ast), 2)
     return self, ast
 end
-function Compiler:getVariable(ast, vars, lhs)
+function Compiler:getVariable(ast, default, islhs)
     local ctx = self.ctx
     local varID
     if ast.prefix == - 1 then
-        ctx = vars
+        ctx = default
     elseif ast.prefix == -2 then
         ctx = ctx[Symbol['caller']]
     elseif ast.prefix then
@@ -160,9 +163,9 @@ function Compiler:getVariable(ast, vars, lhs)
         end
         --not found : global
         ast.prefix = - 1
-        ctx = vars
+        ctx = default
     else error(("invalid prefix (%s) for variable `%s` in static contexts %s and %s"):format(ast.prefix, ast.var, pt(self.ctx), pt(ctx))) end    --should not happen
-    varID = assert(lhs and ctx[ast.var] or rawget(ctx, ast.var),    --potentially creating the variable if lhs.
+    varID = assert(islhs and ctx[ast.var] or rawget(ctx, ast.var),    --potentially creating the variable if lhs.
         ("variable `%s` not found (potentially used before definition) in static context:\t%s"):format(ast.var, pt(ctx)))
     ::varIDdone::
     self:addCode(ast.prefix)
@@ -284,14 +287,46 @@ function Compiler:blockSize(pSize)
     return pSize
 end
 
+-----@param ast {tag:'func', param:AST, exp:AST}
+--function Compiler:funcDef (ast)
+--    self:addCode'block'
+--    self:addCode(0)
+--    if ast.param then
+--        self:subCodeGen(ast, 'param')
+--    end
+--    self:codeGen(preParams)
+--
+--    local funcCtx = self.Cmpctx:new()
+--    local oldGlobalCtx = self.vars
+--      self.vars = funcCtx 
+--      
+--      local oldCallerCtx = self.ctx.caller
+--      self.ctx.caller = self.vars
+--      
+----      local p = self:blockSize()
+--      self:subCodeGen(ast, 'content')
+--      self:addCode'brek'
+-- -      p:honor(#self.vars)
+--      self.ctx = oldCtx
+--     --info to retrieve : number of parameters
+--      --name of parameters corespondance : new to put in a local, parentless ctx (hte static caller of the function to build ?), existing to retrieve in lexical context
+--      
+--      local func = Context:new(self:new{ctx = self.ctx}(ast.exp))
+--      Cc'bindFunc' / c_addCode
+--  end
+--end
+
+---@class metaCompiler : Compiler
 --The compiler metatable. contains the metamethods as welle as method related to creation
 local metaCompiler = {__name = "Compiler"}
 --[[
     A compiler creator.
 ]]
 ----@return Compiler
----@param r Compiler
+----@param r Compiler
+---@type fun (self:Compiler, t?:table) : Compiler
 function metaCompiler:new(r)
+    ---@cast self Compiler
     --initializing metamethods
     self.__index = rawget(self, '__index') or self
     if rawget(self, '__call') == nil then
@@ -347,13 +382,14 @@ function metaCompiler:new(r)
             return self[varsn] - 1
         end
     end
-
+    r.Cmpctx = Cmpctx
     if not r.ctx then
         r.ctx = Cmpctx:new()
     end
 
     --initializing the main switch
     setmetatable(r, self)
+    ---@cast r Compiler
 
     ---Adds a single literal line to the code.
     ---@see Compiler.addCode
@@ -392,6 +428,8 @@ function metaCompiler:new(r)
     local Imply = r.Imply
     ---@see Compiler.newArray
     local newArray = r.newArray
+    ---@see Compiler.funcDef
+    --local funcDef = r.funcDef
 
     ---expands an assignement, depending on its left hand side's tag.
     ---@TODO split eval of RHS and assignement ; make eval of RHS always happen first.
@@ -434,27 +472,18 @@ function metaCompiler:new(r)
         --TODO group and list
 
         fun = Cargs(2) / function (state, ast) ---@TODO TODO
-            --a bad way to handle recursivity : we expand the lhs in a dummy code
-            ---@TODO Ideally, left hand side should be compiled before rhs and we'd be done
+            --a bad way to handle self recursivity without forward declaration : we expand the lhs into a dummy code
+            ---@TODO Ideally, left hand side should always be compiled and executed before rhs and we'd be done
             r:new{ctx = r.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
 
-            --checking the parameters are well formatted and declaring them
-            --they should be a list of ID or (ID = exp)
-            --as we go through the list, make sure we'll eval them and put them in default value
-            --ast.params
-            -- f# : $nil
-            -- f()# : void
-            -- f(a) : variable, 
-            -- f(a=1) : assign, whose lhs is variable, 
-            -- f(a,b) : list, whose elements(exps) are variable, 
-            -- f((a=2),(b=3)) : list, whose elements(exps) are assign whose lhs are variable, 
-            -- f(a,b=4) : list, mix of the two above.
+            ---@TODO : compile the static part of a function : the parameters and body. => staticFun
+            local staticFun = r:new{ctx = r.ctx}(ast.exp)
+            
+            ---@TODO translate : assign(ref, (init (staticFun, default values)))
+            ---@TODO translate : init (staticFun, default values)
 
-            --info to retrieve : number of parameters
-            --name of parameters corespondance : new to put in a local, parentless ctx (hte static caller of the function to build ?), existing to retrieve in lexical context
-
-            local func = Context:new(r:new{ctx = r.ctx}(ast.exp))
-            codeGen(state, nodeAssign(ast.lhs.ref, Node{tag = 'func', 'static'}(func)))
+            codeGen(state, nodeAssign(ast.lhs.ref, nodeNum(staticFun)))
+            -- Node{tag = 'func', 'param', 'exp'}(ast.lhs.param, ast.exp)))
         end * Cargs(2),
         [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
     }
@@ -476,7 +505,7 @@ function metaCompiler:new(r)
         --a function call
         fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
         --The dynamic binding part of a function declaration (copying and binding the function to the environement it is created)
-        func = Cargs(2) * Cc'write' / c_addCode * Cc'static' / addCodeField * Cc'bindFunc' / c_addCode,
+        --func = Cargs(2) / funcDef,
         --I should be able to write newarray higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
         new = Cargs(2) / newArray,
 --        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.

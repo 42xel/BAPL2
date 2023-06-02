@@ -1,7 +1,7 @@
 a = @
-'a recursive function which counts down to zero, starting from a-1
+;a recursive function which counts down to zero, starting from a-1
 frec # = a =>
     (@ = a = a - 1) =>
-    frec # ; 'semi-colon for readibility
+    frec # ; ;semi-colon for readibility
 frec #
-@ = 666 'checking the main function resumes correctly.
+@ = 666 ;checking the main function resumes correctly.

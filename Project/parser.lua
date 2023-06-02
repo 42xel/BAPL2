@@ -12,9 +12,12 @@ local nodeBinop = Node.nodeBinop
 local nodeFoldBinop = Node.nodeFoldBinop
 local nodeFoldBinopSuffix = Node.nodeFoldBinopSuffix
 local nodeUnaryop = Node.nodeUnaryop
+local nodeIndexed = Node.indexed
 local nodeAssign = Node.nodeAssign
 local nodeBlock = Node.nodeBlock
 local nodeReturn = Node.nodeReturn
+--local nodeFunLHSparams = Node.funLHSparams
+local nodeFun = Node.fun
 
 require "utils"
 
@@ -60,12 +63,9 @@ end
 
 local locale = lpeg.locale()
 
-local blockComment = "'{" * (P(1) - "'}")^0 * "'}"
-local lineComment = "'" * (P(1) - "\n")^0
-local comment = blockComment + lineComment
 local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
 
-local ws = newLine + locale.space + comment    --we might need ws or ws^1 in some places
+local ws = newLine + locale.space    --we might need ws or ws^1 in some places
 local ws_ = ws^0
 
 --token generator
@@ -117,11 +117,12 @@ local alnum = locale.alnum
 
 ---@TODO alleviate the need for reserved words (still have special words)
 local Rw_ = setmetatable({
+    "break",
     "return",
     "if",
     "else",
-    "therefore",
-    "goto",
+--    "therefore",
+--    "goto",
     "while",
     "new",
 --    "Array",    ---@TODO (after function and OO) : alternative way to declare Arrays, to eventually replace `new` keyword
@@ -149,11 +150,11 @@ local ID = Cmt((alpha + '_') * (alnum + '_')^0, function (_, p, w)
     return rawget(Rw_, w) == nil, w
 end)
 ---@TODO add `?` prefix meaning in the instance call environment, containing the arguments of a function
-local varPrefix = "~" * Cc(-1)  --global
-    + "?" * Cc(-2)
-    + "." * C(P"."^0) / string.len  --local
-local var = (varPrefix * (ID + C"")
-    + Cc(nil) * ID ) --no prefix : implicit (to be deduced by the compiler)
+local varPrefix = "~" * Cc(0)  --global
+    + C(P"?"^1) / function (s) return -#s end   --local dynamic
+    * C(P"."^1) / string.len                    --local lexical
+local var = (varPrefix * (V'ID' + C"") --potentially no var : referring to the context itself
+    + Cc(nil) * V'ID') --no prefix : implicit (to be deduced by the compiler)
     / Node{tag = 'variable', 'prefix', 'var'}
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -170,29 +171,46 @@ local function paren_ (op, patt, cl, pattName, bname)
     return T_(op) * patt * (T_(cl) + err(pattName .. ": missing closing " .. bname .. "."))
 end
 
-local indexed_ = Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{tag = 'indexed', 'ref', 'index'})
 
---- print. Because it is prefix, I'm notindexed gonna put it in formula, so (@ = a) rather than @ =(a) is necessary to disambiguate.<br>
---- Potentially allows for depth 1 shenanigans, where we print more than just the value.
-local ref_ = T_"@" / Node{tag = 'io'}
-    + indexed_
-    --Cf(var * V'ws_' * paren_("[", V'exp_',"]", "Array index")^0, Node{tag = 'indexed', 'ref', 'index'})
-
+---@TODO : sort priority between formula, index and functions :
+--a + b[] => a + (b[])
+--b
 
 -- We build formula by listing subconstructs, from highest to lowest priority.
 -- in my understanding, priority order is really only needed for pattern needing disambiguation, such as infix op pattern.
 local exp_ = Stack{'seqs_', --'exp_',
     ws_ = ws_,
-    indexed_ = indexed_,
-    ref_ = ref_,
+    --indexedLHS_ = indexedLHS_,
+    --refLHS_ = refLHS_,
+    ID = ID,
     --an expressions or expression sequence delimited by parntheses
-    group_ = paren_("(", V'seqs_',")", "group"),
+    pgroup_ = paren_("(", V'seqs_',")", "group"),
+    group_ = V'pgroup_' + V'context_',
 }
 
 --------------------------------------------------------------------------------
----formula
+
+--[[intricate patterns
+- The easiest patterns to parse by far without encountering problem relative to priority or left recursivity are parenthesized patterns, preferably with a terminator differing from the opener. 
+Obviously "exclusive" pairing is the best. A case of non exclusive pairing is the introduction of `#{ ... #}`, which is still very easy to handle. 
+easier than `{# ... }#̀  would be anyway.
+- next come prefix pattern. Since they are very upfront, we can easily distinguish them right away.
+- next are infix patterns. Their priority needs to be adressed to specify semantics and they may cause some easily solved left recursivity issues.
+- arguably last come suffix patterns. Much like the Reverse Polish Notation, they can be unambiguous without needing grouping. 
+However, we know what we're reading the latest possible. 
+On top of general efficiency consideration, a particular problem they raise in Peg is left recursion.
+
+That's the main reasons why, after some back and forth, I made function prefix, so they don't clash with indexed pattern and make them generally easier to parse.
+It raises the quesition of priority : what does
+```#a[0]```
+mean ? because the terse `#a,[0]` unambiguously means `(#a)[0]`, `#a[0]` must canonically mean `#(a[0])`
+
+]]
+_READ_INTRICATEPATTERNS = nil
 
 --elaborate patterns utils for formula
+
+exp_.prefixed_ = V'fun_' + V'if_' + V'while_' + V'break_' + V'return_'
 
 local function infixOpCapture(opPatt, abovePattern)
     return Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop)
@@ -208,21 +226,57 @@ local function infixChainCapture(opPatt, abovePattern, tag)
     return abovePattern * (opPatt * abovePattern)^0 / Node(Node.isEmpty, 3, {1}, {{tag = tag or 'chainop', [0] = 'chain'}})
 end
 
---primary, aka frst stage in formulas
-exp_:push(
+--primary, aka first stage in formulas
+exp_.primary_ =
     numeral * V'ws_'
-    + V'fun_'
-    + ref_
+    + var * V'ws_'
     + V'group_'
-    + V'if_'    --dubious here ?
-    + V'while_' --dubious here ?
-    --+ V'array_' + V'context' --uncomment if you want to put arrays in formula, with some sort of operator overload presumably.
-)
+    + V'array_'     --to be used along lazy logical operator.
+    ---@TODO add syntax (parer) for 3 + if cond exp. Currently, there is 3 + (if cond exp). Presumably by creating a prefixed_ pattern and adding it to the rhs of the 'elaborate patterns utils for formula'. Not really, needs to be on the last bit of formula, overall not PEG friendly and not worth it.
+    ---@TODO (after the above, compiler) disallow 3 + (return), return return, etc.
+    + V'if_'     --dubious here ?
+    + V'while_'  --dubious here ?
+    + V'break_'  --dubious here ?
+    + V'return_' --dubious here ?
+    --+ V'ref_'      --should'nt be needed here
+exp_:push(V'primary_')
+
+--using numbered pattern for flexibility concerning priorities, and named pattern for easier use elsqwhere.
+--declaring the named pattern first to have more explicit error message from PEG (typically left recursivity)
+exp_.indexed_ = Cf((var * V'ws_' + V'group_') * paren_("[", V'seqs_',"]", "Array index")^0, nodeIndexed)
+exp_:push(V'indexed_' + V(#exp_))
+--local indexedLHS_ = Cf(var * V'ws_' * paren_("[", V'seqs_',"]", "Array index")^0, nodeIndexed)
+--exp_.indexed_ = indexedLHS_
+
+--is a distinct ref_ from indexed_ really relevant and necessary ?
+exp_.ref_ = T_"@" / Node{tag = 'io'}
+    + V'indexed_'
+--    + T_"@" / Node{tag = 'io'}
+exp_:push((V'ref_' + V(#exp_)))
+--[[
+    function pattern
+```
+# a = exp
+```
+Means `a` is assigned to a function that yields `exp`.
+The logic is the same as pointers syntax in C/C++ : a is assigned to the value such that `#a` evaluates to `exp`.
+
+TODO anonymous function (and assignements statements) : `#= body` `#,param = body`
+For now, the workaround `{#.=body}` should work, with caution given to the difference in scoping the block implies.
+
+T_(C"#")^1 allows to fold but is itself never captured
+
+as lhs : `## a = body` means `# a = {#.=body}` (and is kind of free) <br>
+As rhs : `##a` means `#(#a)` (and is free)
+]]
+exp_.fun_ = T_"#" * V(#exp_ + 1) * V(#exp_ + 1)^-1 / nodeFun
+exp_:push(exp_.fun_ + V(#exp_))
+
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
 exp_:push(infixOpCapture(C("//" + S"*/%") * V'ws_', V(#exp_))) --multiplication
 exp_:push(infixOpCapture(C(S"+-") * V'ws_', V(#exp_))) --addition
----comparisons create booleans, so having logical operators of lower precedence alow to combine them wihout parentheses makes sense.
+---comparisons create booleans, so having logical operators of lower precedence allow to combine them wihout parentheses makes sense.
 exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * V'ws_', V(#exp_), 'compChain')) --comparison
 exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
 exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
@@ -231,23 +285,22 @@ exp_:push(infixOpCaptureRightAssoc(C"=>" * V'ws_', V(#exp_ + 1), V(#exp_), 'impl
 --[[
     Formulas are compounds of sticky subexpression, sticky meaning that they may stick to an other higher priority expresion.
     Operator priority is mostly only a thing with infix operators.
-    Formula is the top level expression above expression formed above such subexpression.
-    ]]
+    Formula is the top level expression above such subexpression.
+]]
 exp_.formula_ = V(#exp_)
 
 --------------------------------------------------------------------------------
 ---expressions
 
 --array creation
----@TODO add [2,3,4] for flat multidimensional arrays ? Pit bottom prio, but slice indexing in general is a cool feature indeed
----@TODO remove useless keyword or switch to manual memory management (to each new correspond a delete, and any dynamic memory allocation needs a new)
+---@TODO remove useless keyword or switch to manual memory management (to each new corresponds a delete, and any dynamic memory allocation needs a new)
 --exp_._indexChain_ = infixOpCaptureRightAssoc(Cc(nil), V'_indexChain_', brackExp_ + T_"=" * V'exp_', 'new')
 --- `brackExp_ + T_"=" * V'exp_'`  : it's ok, T_"=" * V'exp_' is necessarilly last.
 ---I put it here, it makes more sense than in assign cause it's only useable for initialization, later on writing ̀`myTab = 0` won't fill myTab, it will just set myTab to 0.
 exp_.array_ = Cfr(Rw_"new" * paren_("[", V'seqs_', "]", "new Array")^1 * (T_"=" * V'exp_' + Cc(nil)),  --at least on result needed for size specifiers (seqs1_)
     Node{tag='new', 'size', 'default'})
 ---litteral Array
-exp_.context = paren_("{", V'seqs_', "}", "block/litteral Array")
+exp_.context_ = paren_("{", V'seqs_', "}", "block/litteral Array")
     / nodeBlock
 
 -----code block. For now, you have to 
@@ -256,44 +309,39 @@ exp_.context = paren_("{", V'seqs_', "}", "block/litteral Array")
 
 local _errNoSC = err"BEWARE, you cannot separate condition, then and else with semi-colon"
 --BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them clarify where the whole if stops though.
-exp_.if_ = Rw_"if" * V'assign_' * (T_";" * _errNoSC + 0) * V'assign_' *
-    ((T_";" * Rw_"else" * _errNoSC + Rw_"else") * V'assign_' *I'else')^-1 /
+exp_.if_ = Rw_"if" * V'assign__' * (T_";" * _errNoSC + 0) * V'assign__' *
+    ((T_";" * Rw_"else" * _errNoSC + Rw_"else") * V'assign__' * I'else')^-1 /
     Node{tag = 'if', "cond", "then", "else"}
-exp_.while_ = Rw_"while" * V'assign_' * V'assign_' / Node{tag = 'while', 'cond', 'stat'}
+exp_.while_ = Rw_"while" * V'assign__' * V'assign__' / Node{tag = 'while', 'cond', 'stat'}
 
 exp_.return_ = Rw_"return" * (V'exp_' + Cc(nil)) / nodeReturn
 --exp_.return_ = Rw_"return" * Cc(Node.empty)
---exp_.break_ = Rw_"break" * (V'exp_' + Cc(nil)) / Node{tag = 'break', "exp"}
---- using named pattern variable is not a necessity, here, it could have been a big sum, but it's better for organization, and it's more modular if I want to add only some patterns as LHS for example.
+exp_.break_ = Rw_"break" * (V'exp_' + Cc(nil)) / Node{tag = 'break', "exp"}
+
 ---A pure atomic expression in the sense of expressing a single value (compares with sequences and lists)
-exp_. exp_ = (false
-    + V'formula_' --contains parentheses group ok.
-    + V'array_' + V'context'
-    -- if and while here are redundant with exp_[2] (first stage of formula), but they're dubious there and don't hurt here...
-    + V'if_'
-    + V'while_'
---    + V'break_'
-    + V'return_'
+exp_.exp_ = (false
+    + V'formula_' --contains parentheses group ok.    --+ V'array_' + V'context_'
 )
 
 --------------------------------------------------------------------------------
 ---sequences
-
 
 ---a function to create sequences patterns.
 --- Cc(nil) to escape the pesky full match being returned when no capture occurs (nil is part of the capture but forgotten upon filling the table)
 ---@TODO error handling ? especially if sep non nil ?
 local function seq(patt, sep, nonEmpty, tag, field)
     if sep then
-        local r = patt * (sep * patt)^0 * sep^-1
+        local r = patt * (sep * patt)^0
         if not nonEmpty then
             r = r + Cc(nil)
         end
-        return r / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = tag or 'seq', [0] = field or 'stats'}})
+        return r * sep^-1 /
+        Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = tag or 'seq', [0] = field or 'stats'}})
     else
-    ---@TODO try ^0.
-    ---@TODO Remove Cc(nil) if useless.
-    return patt^(nonEmpty and 1 or 0) / Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = tag or 'seq', [0] = field or 'stats'}})
+        ---@TODO try ^0.
+        ---@TODO Remove Cc(nil) if useless.
+        return patt^(nonEmpty and 1 or 0) /
+        Node(Node.isEmpty, 2, {Node.isEmpty, 1, {Node.empty}, {1}}, {{tag = tag or 'seq', [0] = field or 'stats'}})
     end
 end
 
@@ -312,9 +360,9 @@ do
         fun = true,
     }
     exp_.lhs_ = Cmt(false --TODO add more
-        + V'fun_'
-        + V'ref_'
-        + V'group_'
+        + V'fun_' -- + V'funLHS_'
+        + V'ref_' --+ V'refLHS_'
+        + V'pgroup_'
 --[[
 Ideal behavior (enables default arguments) :
 R-evaluates rhs, L-evaluates lhs, lazy assign, clean the lhs part of the stack.
@@ -329,51 +377,40 @@ TODO how does it relates to function loading ?
         ,
         function (_, _, lhs)
             if _validLhs[lhs.tag] then
+                --print("bla3", pt(lhs))
                 return true, lhs
             else
+                --print("bla4", lhs.tag, pt(lhs))
                 return false, "Invalid Left hand side for assignement"  ---@TODO see whether and where it is possible to throw this error/warning
             end
         end
     )
 end
 
---small parenthese to talk about functions, since there definition involve assignement-like and sequences
----@TODO see if more things make sense. Actually let's make it all right away. Delete this
----using parentheses to stay consistent as comma is of higher prio than equal.
---local funarg =  paren_("(", ID * V'ws_' * T_"=" * V(#exp_ + 1) / nodeAssign,")", "Function parameter") + ID * V'ws_' / Node{tag = 'variable', 'var'}
---local funargs = paren_("(", seq(funarg, T_",", false, 'parameters', 'parameters'), ")", "Function parameters")
-
---[[
-    function pattern
-```
-a # = exp
-```
-Means `a` is assigned to a function that yields `exp`.
-The logic is the same as pointers in C/C++ : a is assigned to the value such that `a#` evaluates to `exp`.
-
-TODO add anonymous statements : `(#= exp)`
-
-T_(C"#")^1 allows to fold but is itself never captured
-a## = exp` is equivalent to `a # = (#= exp)` (and is kind of free) <br>
-As rhs : `a##` is equivalent to `(a#)#` (should be free ? yes it is)
-
-
-]]
-local fun_ = Cf(V'indexed_' * ((V'group_' + Cc(nil)) * T_"#")^1,
-    Node{tag = 'fun', 'ref', 'params'})
-exp_.fun_ = fun_
-
-
-exp_:push(V'lhs_' * T_"=" * V(#exp_ + 1) / nodeAssign + V(#exp_))
-exp_.assign_ = V(#exp_)
+exp_.assign_ = V'lhs_' * T_"=" * V(#exp_ + 1) / nodeAssign
+exp_:push(exp_.assign_ + V(#exp_))
+exp_.assign__ = V(#exp_)
 ---a juxtaposed sequence of lists and assignements. Comment out to make semi colons mandatory.
 exp_:push(seq(V(#exp_), nil, true))
+
+
+--local blockComment = ";{" * (P(1) - ";}")^0 * ";}"
+---@param code string
+local blockComment = P";{" * (Cmt(C((P"{")^0) * Cc"", function (code, i, brackets)
+    return code:match(("}"):rep(1 + #brackets) .. '()', i)
+ end)
+    * V'ws_'
+    + err"Block comment missing end bracket(s)")
+local lineComment = ";" * (P(1) - "\n")^0 * V'ws_'-- * print
+local comment = blockComment + lineComment
+
 ---semi-colon_can be used to break sequences.
-exp_:push(seq(V(#exp_), T_";"))
-exp_.seqs_ = V(#exp_)
-exp_.seqs1_ = seq(V(#exp_ - 1), T_";", true)
+exp_.seqs_ = seq(V(#exp_) + Cc(Node.empty) * V'ws_', comment)
+exp_:push(exp_.seqs_)
+--exp_.seqs_ = V(#exp_)
+exp_.seqs1_ = seq(V(#exp_ - 1), comment, true)
 
-
+--+ T_"@" / Node{tag = 'io'}
 exp_ = P(exp_)
 
 --------------------------------------------------------------------------------
@@ -386,7 +423,7 @@ local filePatt =
 ---@return AST
 local function parse (input)
     local r = filePatt:match(input)
-    assert(r, "whatever error message there should be")
+    assert(r, "Parsing failed:\tunknown reason :'(")
     return r-- nodeReturn(nodeBlock(r))
 end
 --------------------------------------------------------------------------------

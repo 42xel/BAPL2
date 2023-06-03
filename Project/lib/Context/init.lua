@@ -14,8 +14,8 @@ What's currently metadata should probably be regular data as well, on what langu
 ]]
 ---@class Context : Proxy
 ---@field head ContextElement
----@field parent Context
----@field caller Context
+---@field parent? Context
+----@field caller? Context
 local Context = {__name = "Context",
     validTypes = {
         number = true,
@@ -23,26 +23,28 @@ local Context = {__name = "Context",
         ["nil"] = true,
     }
 }
-Context.hpos = 0
+
 Context.memlen = 0
 Context.arrlen = 0
+Context.hpos = 1
+Context.ihpos = 1
 
 ---@TODO : clean that thing up
 --the toplevel parent
 Context.parent = {} -- {write = function (_, v) print(v) end, up = print}
 
-Context.caller = nil
-Context.hpos = 1
+--Context.caller = nil
 Context[0] = Context
 
 ---@TODO (for memory cleaning, after VM rewrite) add owner ?
----@param t? {arrlen?: number, hpos?: number, memlen?: number}
+---@param t? {arrlen?: number, hpos?: number, memlen?: number, parent? : Context} --, caller? : Context}
 ---@return Proxy
 function Context:new(t)
     t = getmetatable(self).new(self, t or {}) --inheritance of sort (here inheriting from Proxy)
 
     t.arrlen = rawget(t, "arrlen") or rawlen(t)
     t.hpos = rawget(t, "hpos") or 1
+    t.ihpos = rawget(t, "ihpos") or 1
     if not t.memlen then
         t.memlen = - 1
         while rawget(t, t.memlen) do
@@ -150,13 +152,15 @@ function Context:_defaultGettersFactory()
         validTypes = self,
         cpy = self,
         --fields
-        memlen = rawget, --self,
-        arrlen = rawget, --self,
-        hpos   = rawget, --self,
-        parent = rawget, --self,
-        caller = rawget, --self,
-        func   = rawget, --self,
-        _fun   = rawget, --self, --a flag to know whether the context is a function
+        memlen = rawget,
+        arrlen = rawget,
+        hpos   = rawget,
+        ihpos  = rawget,
+        stack  = rawget,
+        parent = rawget,
+--        caller = rawget,
+        func   = rawget,
+        _fun   = rawget, --a flag to know whether the context is a function
         --proxy (pseudo) fields
         head = function (stack) return rawget(stack, stack.hpos) end,
         ---@TODO
@@ -181,13 +185,15 @@ function Context:_defaultSettersFactory()
     end
     self._defaultSetters = setmetatable({
         --fields
-        memlen = rawset, -- self,
-        arrlen = rawset, -- self,
-        hpos   = rawset, -- self,
-        parent = rawset, -- self,
-        caller = rawset, -- self,
-        func   = rawset, --self,
-        _fun   = rawset, --self, --a flag to know whether the context is a function
+        memlen = rawset,
+        arrlen = rawset,
+        hpos   = rawset,
+        ihpos  = rawset,
+        stack  = rawset,
+        parent = rawset,
+--        caller = rawset,
+        func   = rawset,
+        _fun   = rawset, --a flag to know whether the context is a function
         --proxy fields
         head = function (stack, _head, v) rawset(stack, stack.hpos, v) end,
     }, {__index = function (_, k)
@@ -205,18 +211,22 @@ Context.parent = Context:new(Context.parent)
 
 ---A virtual context, which does not hold information itself but has a parent and a caller pointer to an actual context
 ---@class VirtualContext : table : Context
----@field parent Context
----@field caller? Context
+---@field stack Context         the stack supposed to be manipulated and written to.
+---@field vtcxParent? VirtualContext    the former vctx to resume to after the end of a block or function
+---@field parent? Context       for lexical scoping (upvalues of sort)
+---@field caller? Context       for dynamical scoping (parameters)
+---@field ihpos? number         the stack head position at the begninning and end of call reguarding this context
 local VirtualContext = setmetatable({}, {__index = Context})
 ---comment
----@param t? table|Context
----@param parent Context
----@param caller? Context
----@return any
-function VirtualContext:new (t, parent, caller)
+---@param t? {vtcxParent? : VirtualContext, stack? : Context, parent? : Context, caller? : Context, ihpos? : number,} | VirtualContext
+---@return VirtualContext
+function VirtualContext:new (t) --, stack, parent, caller, ihpos)
     t = t or {}
-    t.parent = parent or t.parent
-    t.caller = caller or t.caller
+    t.vtcxParent = t.vtcxParent
+    t.stack = t.stack or t.vtcxParent and t.vtcxParent.stack
+    t.parent = t.parent or t.vtcxParent and t.vtcxParent.parent or t.stack
+    t.caller = t.caller or t.vtcxParent and t.vtcxParent.caller or t.stack
+    t.ihpos = t.ihpos or t.stack and t.stack.hpos
     self.__index = self.__index or self
     return setmetatable(t, self)
 end

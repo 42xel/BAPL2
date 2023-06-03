@@ -63,10 +63,20 @@ end
 
 local locale = lpeg.locale()
 
-local newLine = '\n' --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
+local newLine = "\n" --  * Cg(Cb("lineCount") / inc, "lineCount") * Cg(Cp(), "lastLineStart")
 
-local ws = newLine + locale.space    --we might need ws or ws^1 in some places
+---@param code string
+local blockComment = P";{" * (Cmt(C((P"{")^0) * Cc"", function (code, i, brackets)
+    return code:match(("}"):rep(1 + #brackets) .. '()', i)
+ end)
+    + err"Block comment missing end bracket(s)")
+local lineComment = ";" * (P(1) - newLine)^0 -- * print
+local comment = blockComment + lineComment
+
+local ws = newLine * comment^-1 + locale.space    --we might need ws or ws^1 in some places
 local ws_ = ws^0
+
+local comment_ = comment * V'ws_'
 
 --token generator
 local function T_(token)
@@ -152,7 +162,7 @@ end)
 ---@TODO add `?` prefix meaning in the instance call environment, containing the arguments of a function
 local varPrefix = "~" * Cc(0)  --global
     + C(P"?"^1) / function (s) return -#s end   --local dynamic
-    * C(P"."^1) / string.len                    --local lexical
+    + C(P"."^1) / string.len                    --local lexical
 local var = (varPrefix * (V'ID' + C"") --potentially no var : referring to the context itself
     + Cc(nil) * V'ID') --no prefix : implicit (to be deduced by the compiler)
     / Node{tag = 'variable', 'prefix', 'var'}
@@ -367,7 +377,7 @@ do
 Ideal behavior (enables default arguments) :
 R-evaluates rhs, L-evaluates lhs, lazy assign, clean the lhs part of the stack.
 
-Pbtq : rhs is potentially computed at once, with dynamical size, so I can't just statically break asignemnt with list lhs into a list of assignements.
+Pbtq : rhs is potentially computed at once, with dynamical size, so I can't just statically break asignement with list lhs into a list of assignements.
 - Sol 1 : first evaluate lhs + new instruction combine with dynamic move (opInstruction mv_d) ? Probably no as I kind of want to evaluate rhs first in general. 
 
 TODO how does it relates to function loading ?
@@ -393,22 +403,11 @@ exp_.assign__ = V(#exp_)
 ---a juxtaposed sequence of lists and assignements. Comment out to make semi colons mandatory.
 exp_:push(seq(V(#exp_), nil, true))
 
-
---local blockComment = ";{" * (P(1) - ";}")^0 * ";}"
----@param code string
-local blockComment = P";{" * (Cmt(C((P"{")^0) * Cc"", function (code, i, brackets)
-    return code:match(("}"):rep(1 + #brackets) .. '()', i)
- end)
-    * V'ws_'
-    + err"Block comment missing end bracket(s)")
-local lineComment = ";" * (P(1) - "\n")^0 * V'ws_'-- * print
-local comment = blockComment + lineComment
-
 ---semi-colon_can be used to break sequences.
-exp_.seqs_ = seq(V(#exp_) + Cc(Node.empty) * V'ws_', comment)
+exp_.seqs_ = seq(V(#exp_) + Cc(Node.empty) * V'ws_', comment_)
 exp_:push(exp_.seqs_)
 --exp_.seqs_ = V(#exp_)
-exp_.seqs1_ = seq(V(#exp_ - 1), comment, true)
+exp_.seqs1_ = seq(V(#exp_ - 1), comment_, true)
 
 --+ T_"@" / Node{tag = 'io'}
 exp_ = P(exp_)
@@ -424,7 +423,7 @@ local filePatt =
 local function parse (input)
     local r = filePatt:match(input)
     assert(r, "Parsing failed:\tunknown reason :'(")
-    return r-- nodeReturn(nodeBlock(r))
+    return nodeBlock(r)
 end
 --------------------------------------------------------------------------------
 return parse

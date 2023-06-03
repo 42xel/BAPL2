@@ -143,7 +143,7 @@ Not really an issue though, most languages are like that.
 ## TODO
 - have chatGPT write tests for you.
 - allow to make new falsy and truthy values with functions somehow ?
-- repeat until and repeat unless more idiomatic ?
+- repeat until and repeat unless, more idiomatic ?
 - replace keywords ?
 - more default control structures and more flexible else ?
 - storing varargs in closures with shortcuts ? the smartart thingy which does work in lua ?

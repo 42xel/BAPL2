@@ -1,0 +1,2 @@
+if 2 @ = 3; else 4
+;Should not error, because it's a comment, but a warning would sill be much appreciated

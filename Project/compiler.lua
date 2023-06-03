@@ -128,31 +128,47 @@ end
 function Compiler:getVariable(ast, default, islhs)
     local ctx = self.ctx
     local varID
-    if ast.prefix == - 1 then
-        ctx = default
-    elseif ast.prefix == -2 then
-        ctx = ctx[Symbol['caller']]
-    elseif ast.prefix then
-        for _ = 1, ast.prefix do
-            ctx = ctx[Symbol['parent']]
-        end
-    elseif not ast.prefix then  --no prefix : let's figure out what context it refers to
-        --trying local context
-        ast.prefix = 0
-        varID = rawget(ctx, ast.var)
-        if varID then
-            goto varIDdone
-        end
-        --trying function argument
-        if ctx[Symbol['caller']] then
-            varID = rawget(ctx[Symbol['caller']], ast.var)
-            if varID then
-                ast.prefix = - 2
+    if type(ast.prefix) == 'number' then
+        if ast.prefix == 0 then --global variable
+            ctx = default
+        elseif ast.prefix < 0 then  --dynamic parameter
+            for _ = 1, ast.prefix do
                 ctx = ctx[Symbol['caller']]
-                goto varIDdone
+            end
+        elseif ast.prefix > 0 then  --lexical local variable
+            for _ = 1, ast.prefix do
+                ctx = ctx[Symbol['parent']]
             end
         end
+    elseif ast.prefix == nil then --no prefix : let's figure out what context it refers to
+        ----trying local context
+        --ast.prefix = 0
+        --varID = rawget(ctx, ast.var)
+        --if varID then
+        --    goto varIDdone
+        --end
+        --trying function argument
+        ast.prefix = -1
+        ctx = self.ctx[Symbol['caller']]
+        while ctx do
+            varID = rawget(ctx, ast.var)
+            if varID then
+                goto varIDdone
+            end
+            ast.prefix = ast.prefix + 1
+            ctx = ctx[Symbol['parent']]
+        end
+        --if ctx[Symbol['caller']] then
+        --    varID = rawget(ctx[Symbol['caller']], ast.var)
+        --    if varID then
+        --        ast.prefix = - 1
+        --        ctx = ctx[Symbol['caller']]
+        --        goto varIDdone
+        --    end
+        --end
         --trying above contexts
+        ast.prefix = 1
+        ctx = self.ctx[Symbol['parent']]
         while ctx do
             varID = rawget(ctx, ast.var)
             if varID then
@@ -162,9 +178,10 @@ function Compiler:getVariable(ast, default, islhs)
             ctx = ctx[Symbol['parent']]
         end
         --not found : global
-        ast.prefix = - 1
+        ast.prefix = 0
         ctx = default
-    else error(("invalid prefix (%s) for variable `%s` in static contexts %s and %s"):format(ast.prefix, ast.var, pt(self.ctx), pt(ctx))) end    --should not happen
+    else error(("invalid prefix (%s) for variable `%s` in static contexts %s and %s"):format(ast.prefix, ast.var, pt(self.ctx), pt(ctx)))    --should not happen
+    end
     varID = assert(islhs and ctx[ast.var] or rawget(ctx, ast.var),    --potentially creating the variable if lhs.
         ("variable `%s` not found (potentially used before definition) in static context:\t%s"):format(ast.var, pt(ctx)))
     ::varIDdone::

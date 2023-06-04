@@ -1,4 +1,4 @@
-incr(a = 0) # = a + 1
+# incr 0 = ? + 1
 
-@ = incr (5) #
-@ = incr #
+@ = # incr (5) 
+@ = #incr;

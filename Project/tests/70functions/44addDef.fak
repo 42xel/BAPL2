@@ -1,5 +1,4 @@
-add ( (a =1), (b=1) ) # = a + b
-;beware, comma has higher priority than equal, so parentheses are needed.
+## add 1 1 = ? + ??
 
-@=add(43,6)#
-@=add #
+@ = ## add 43 6
+@ = ##add ;

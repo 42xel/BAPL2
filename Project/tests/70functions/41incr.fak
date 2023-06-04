@@ -1,3 +1,3 @@
-incr(a) # = a + 1
+# incr = ? + 1
 
-@ = incr (5) #
+@ = #incr (5)

@@ -279,7 +279,7 @@ T_(C"#")^1 allows to fold but is itself never captured
 as lhs : `## a = body` means `# a = {#.=body}` (and is kind of free) <br>
 As rhs : `##a` means `#(#a)` (and is free)
 ]]
-exp_.fun_ = T_"#" * V(#exp_ + 1) * V(#exp_ + 1)^-1 / nodeFun
+exp_.fun_ = T_"#" * V(#exp_ + 1) * (V(#exp_ + 1) + Cc(Node.empty)) / nodeFun
 exp_:push(exp_.fun_ + V(#exp_))
 
 exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --power

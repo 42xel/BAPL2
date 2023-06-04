@@ -1,4 +1,4 @@
 # add  = (a = new [2] = @ ;
     a[1] + a[2])
-@ = add #
+@ = #add ;
 @ = 67  ;to make sure things are resumed correctly after fn call

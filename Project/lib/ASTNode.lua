@@ -94,5 +94,6 @@ Node.nodeReturn = Node{tag = 'return', "exp"}
 
 Node.fun = Node{tag = 'fun', 'ref', 'param'}
 --Node.funLHSparams = Node{tag = 'params', [0] = "list"}
+Node.fundef = Node{tag = 'fundef', 'default', 'sbody'}--, 'ctx'}
 
 return Node

@@ -1,0 +1,6 @@
+## f = 5 
+
+@ = # f ;   semicolons or parentheses are necessary here so as not to confuse the next expression with parameters / default value. It's somewhat bad.
+b = # f ;
+@ = # b ;
+@ = ## f ;

@@ -17,6 +17,7 @@ local Symbol = require"Symbol"
 local Node = require"ASTNode"
 local nodeAssign = Node.nodeAssign
 local nodeNum = Node.nodeNum
+local nodeFundef = Node.fundef
 
 --local utils =
  require "utils"
@@ -199,16 +200,20 @@ end
 --[[
     A function which expands the code of `ast[field]`. Returns `self, ast`.
 ]]
-function Compiler:subCodeGen(ast, field)
-    if ast[field] == nil then print(([[
-        Warning empty field in subCodeGen while parsing %s, looking for field %s.
-        It may be anything from a mistake in the parser or the compiler to someone's malpractice with empty statements.
-        Hopefully, it is just a missing optional expression.
-        ]])
-            :format(pt(ast), field))
-        return self, ast
+function Compiler:subCodeGen(ast, ...)
+    local newAst = ast
+    for _, field in ipairs{...} do
+        if newAst[field] == nil then print(([[
+            Warning empty field in subCodeGen while parsing %s, looking for field %s.
+            It may be anything from a mistake in the parser or the compiler to someone's malpractice with empty statements.
+            Hopefully, it is just a missing optional expression.
+            ]])
+            :format(pt(newAst), field))
+            return self, ast
+        end
+        newAst = newAst[field]
     end
-    self:codeGen(ast[field])
+    self:codeGen(newAst)
     return self, ast
 end
 
@@ -428,8 +433,12 @@ function metaCompiler:new(r)
     ---Adds a field verbatim to the code. Returns `self, ast`, for ease of chaining in the switch.
     ---@see Compiler.addCodeField
     local addCodeField = _COMPILER_DEBUG and
-    function (compiler, ast, field)
-        return c_addCode(compiler, ast, ast[field])
+    function (compiler, ast, ...)
+        local newAst = ast
+        for _, field in ipairs{...} do
+            newAst = newAst[field]
+        end
+        return c_addCode(compiler, ast, newAst)
     end or r.addCodeField
     local getVariable = r.getVariable
     ---A function which recursively generates the code of an AST
@@ -486,21 +495,29 @@ function metaCompiler:new(r)
             subCodeGen(state, ast, 'lhs')
             return codeGen(state, nodeAssign(ast.lhs.lhs, ast.exp))
         end,
-        --TODO group and list
+        ---@TODO group and list
 
+        ---@param state Compiler
         fun = Cargs(2) / function (state, ast) ---@TODO TODO
-            --a bad way to handle self recursivity without forward declaration : we expand the lhs into a dummy code
+            --a bad way to handle self recursivity without forward declaration : we expand the lhs into a dummy code first
             ---@TODO Ideally, left hand side should always be compiled and executed before rhs and we'd be done
             r:new{ctx = r.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
+            if ast.lhs.param then r:new{ctx = r.ctx}(ast.lhs.param) end
 
             ---@TODO : compile the static part of a function : the parameters and body. => staticFun
-            local staticFun = r:new{ctx = r.ctx}(ast.exp)
-            
-            ---@TODO translate : assign(ref, (init (staticFun, default values)))
-            ---@TODO translate : init (staticFun, default values)
+            ---@TODO context manipulation not relevant yet. It will be when named parameters (or any parameters other than ?) are introduced.
+            local callerCtx = Cmpctx:new(nil, nil, r.ctx[Symbol['caller']])
+            local funCtx = Cmpctx:new(nil, r.ctx[Symbol['parent']], callerCtx)
+            local staticFun = r:new{ctx = funCtx}(ast.exp)
 
-            codeGen(state, nodeAssign(ast.lhs.ref, nodeNum(staticFun)))
+            ---@TODO translate : init (staticFun, default values)
+            ---see r.switch.fundef
+
+            ---@TODO translate : assign(ref, (init (staticFun, default values)))
+            codeGen(state, nodeAssign(ast.lhs.ref, nodeFundef(ast.lhs.param, staticFun)))
+
             -- Node{tag = 'func', 'param', 'exp'}(ast.lhs.param, ast.exp)))
+
         end * Cargs(2),
         [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
     }
@@ -519,6 +536,19 @@ function metaCompiler:new(r)
         variable = Cargs(2) * Cc'load' / c_addCode * Cc(r.vars) / getVariable,
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
+        --a function definition
+        ---@param state Compiler
+        fundef = Cargs(2) / function (state, ast)
+            addCode(state, 'clean')
+            subCodeGen(state, ast, 'default')
+            --local oldCtx = state.ctx
+            --state.ctx = ast.ctx
+            addCode(state, 'fundef')
+            --subCodeGen(state, ast, 'sbody')
+            addCodeField(state, ast, 'sbody')
+            --state.ctx = oldCtx
+            return state, ast
+        end,
         --a function call
         fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
         --The dynamic binding part of a function declaration (copying and binding the function to the environement it is created)
@@ -528,7 +558,6 @@ function metaCompiler:new(r)
 --        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
         ---@param state Compiler
         block = Cargs(2) / function (state, ast)
-            ---@TODO change r.ctx then set it back
             local oldCtx = r.ctx
             r.ctx = Cmpctx:new(nil, oldCtx)
             local p = state:blockSize()

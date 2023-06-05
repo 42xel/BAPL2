@@ -88,6 +88,7 @@ Compiler.codeOP = {
         ['+'] = 'plus',
         ['-'] = 'minus',
         ['!'] = 'not',
+        ['!!'] = 'BWnot',
     },
     b = {
         ['+'] = 'add',
@@ -98,9 +99,15 @@ Compiler.codeOP = {
         ['%'] = 'mod',
         ['^'] = 'pow',
 
-        ['&&'] = 'and',
-        ['||'] = 'or',
+        ['&'] = 'and',
+        ['|'] = 'or',
         ['=>'] = 'imply',
+
+        ['>>'] = 'rshft',
+        ['<<'] = 'lshft',
+        ['&&'] = 'BWand',
+        ['~~'] = 'BWxor',
+        ['||'] = 'BWor',
     },
     c = {
         ['<'] = 'c_lt',

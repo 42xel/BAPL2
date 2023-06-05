@@ -163,7 +163,7 @@ end)
 local varPrefix = "~" * Cc(0)  --global
     + C(P"?"^1) / function (s) return -#s end   --local dynamic
     + C(P"."^1) / string.len                    --local lexical
-local var = (varPrefix * (V'ID' + C"") --potentially no var : referring to the context itself
+local var = (varPrefix * (V'ID' + (C"" - B"~" * #P"~")) --potentially no var : referring to the context itself
     + Cc(nil) * V'ID') --no prefix : implicit (to be deduced by the compiler)
     / Node{tag = 'variable', 'prefix', 'var'}
 --------------------------------------------------------------------------------
@@ -286,11 +286,20 @@ exp_:push(infixOpCaptureRightAssoc(C"^" * V'ws_', V(#exp_+1),  V(#exp_))) --powe
 exp_:push(unaryOpCapture(C(S"+-"), V(#exp_ + 1), V(#exp_))) --unary +-
 exp_:push(infixOpCapture(C("//" + S"*/%") * V'ws_', V(#exp_))) --multiplication
 exp_:push(infixOpCapture(C(S"+-") * V'ws_', V(#exp_))) --addition
+
+---Bitwise Operations
+exp_:push(unaryOpCapture(C'!!', V(#exp_ + 1), V(#exp_)))   -- unary bitwise NOT
+exp_:push(infixOpCapture((C'>>' + C'<<') * V'ws_', V(#exp_)))  -- right shift and left shift
+exp_:push(infixOpCapture(C'&&' * V'ws_', V(#exp_)))   -- bitwise AND
+exp_:push(infixOpCapture(C'~~' * V'ws_', V(#exp_)))   -- bitwise exclusive OR
+exp_:push(infixOpCapture(C'||' * V'ws_', V(#exp_)))   -- bitwise OR
+
+
 ---comparisons create booleans, so having logical operators of lower precedence allow to combine them wihout parentheses makes sense.
 exp_:push(infixChainCapture(C(S"<>" * P"="^-1 + S"!=" * "=") * V'ws_', V(#exp_), 'compChain')) --comparison
 exp_:push(unaryOpCapture(C"!", V(#exp_ + 1), V(#exp_)))    --unary not.
-exp_:push(infixOpCaptureRightAssoc(C"&&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
-exp_:push(infixOpCaptureRightAssoc(C"||" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
+exp_:push(infixOpCaptureRightAssoc(C"&" * V'ws_', V(#exp_ + 1), V(#exp_), 'conjunction'))    --binary and.
+exp_:push(infixOpCaptureRightAssoc(C"|" * V'ws_', V(#exp_ + 1), V(#exp_), 'disjunction'))    --binary or.
 exp_:push(infixOpCaptureRightAssoc(C"=>" * V'ws_', V(#exp_ + 1), V(#exp_), 'imply'))          --logical imply.
 --[[
     Formulas are compounds of sticky subexpression, sticky meaning that they may stick to an other higher priority expresion.

@@ -188,11 +188,18 @@ function Run:new(code, run)
             idiv= function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] //pop(vctx.stack)) end,
             mod = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] % pop(vctx.stack)) end,
             pow = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] ^ pop(vctx.stack)) end,
-            
+
+            BWand=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] & pop(vctx.stack)) end,
+            BWxor=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] ~ pop(vctx.stack)) end,
+            BWor =function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] | pop(vctx.stack)) end,
+            rshft=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] >>pop(vctx.stack)) end,
+            lshft=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] <<pop(vctx.stack)) end,
+
             --unary operations
             plus = function () end,
             minus  = function() vctx.stack.head = - vctx.stack.head end,
             ["not"] = function() vctx.stack.head = vctx.stack.head == 0 and 1 or 0 end,
+            BWnot = function() vctx.stack.head = ~ vctx.stack.head end,
             --binary comparisons
             lt  = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] <  pop(vctx.stack) and 1 or 0) end,
             le  = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] <= pop(vctx.stack) and 1 or 0) end,

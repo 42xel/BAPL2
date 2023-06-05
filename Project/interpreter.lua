@@ -260,7 +260,9 @@ function Run:new(code, run)
                 }
             end,
             brek  = function()
-                assert(vctx.ihpos == vctx.stack.hpos, "Incorrect Stack head position upon break:\n" .. tostring(vctx.parent) .. "\t len:\t" .. vctx.parent.hpos)
+                assert(vctx.stack.ihpos == vctx.stack.hpos,
+                    "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
+                    .. "\t ipos:\t" .. vctx.stack.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
                     --print("toplevel")
                     return true
@@ -275,33 +277,40 @@ function Run:new(code, run)
             end,
             fundef = function ()  ---@TODO : split into copy and bind, and use bind for other shenanigans ?
                 pc = pc + 1
-                vctx.parent.head = Context.pxy(code[pc], { --turning the static definition into a dynamic object
-                    [0] = vctx.parent.head,        --default value
+                write(vctx.stack, Context.pxy(code[pc], { --turning the static definition into a dynamic object
+                    [0] = peek(vctx.stack),        --default value
                     _fun = true,                   --to differentiate between arrays and functions.
                     parent = vctx.parent,
-                })
-                --print("fundef", vctx.parent.head, vctx.parent.head.arrlen, vctx.parent.head[1])
+                    caller = vctx.caller,           --I did not expect it to have to put it there, but I'm most likely misunderstanding ## f, which is flatter than I thought.
+                }))
             end,
             call  = function()
-                local param = vctx.parent.head
-                vctx.parent.hpos = vctx.parent.hpos - 1
+                local param = pop(vctx.stack)
+                local fni = peek(vctx.stack)
 
-                assert(isFunction(vctx.parent.head), "call: not a function:\t" .. tostring(vctx.parent.head))
----@diagnostic disable-next-line: param-type-mismatch
-                local fni = vctx.parent.head:pxy{   --
-                    [0] = param,
-                    caller = code,-- vctx.caller,
-                }
+                assert(isFunction(fni), "call: not a function:\t" .. tostring(fni))
+                fni = Context.pxy(fni, {   --function call instance
+                    [0] = param or fni[0],
+                    parent = fni.parent,
+                    caller = fni.caller,
+                    --caller = vctx.caller,
+                    --caller = code,
+                })
+
                 run(fni, {
                     vctx = VirtualContext:new{
                         vtcxParent = vctx,
-                        parent = vctx.parent.head.parent,
+                        stack = vctx.stack,
+                        parent = fni.parent,
                         caller = fni,
                     },
+                    gmem = gmem,
                 })
             end,
             ret   = function()
-                assert(vctx.ihpos == vctx.stack.hpos, "Incorrect Stack head position upon return:\n" .. tostring(vctx.parent) .. "\t len:\t" .. vctx.parent.hpos)
+                assert(vctx.stack.ihpos == vctx.stack.hpos,
+                    "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
+                    .. "\t ipos:\t" .. vctx.stack.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
                     --print("toplevel")
                     return true
@@ -331,7 +340,6 @@ function Run:new(code, run)
             __call = trace and function (self)
                 pc = pc + 1
                 if _INTERPRETER_DEBUG then  print(trace:unpack()) end ---@TODO make better
-                --print("run:__call", code, pt(code))
                 trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
                 return self[code[pc]]()
             end or function (self)

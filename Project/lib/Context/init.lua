@@ -15,7 +15,7 @@ What's currently metadata should probably be regular data as well, on what langu
 ---@class Context : Proxy
 ---@field head ContextElement
 ---@field parent? Context
-----@field caller? Context
+---@field caller? Context
 local Context = {__name = "Context",
     validTypes = {
         number = true,
@@ -72,7 +72,6 @@ end
 ---@TODO use that to make virtual contexts ?
 ---@TODO (vm rework) make Context much simpler with a data field which is an array/vector
 function Context:pxy(t, getters, setters)
-
     local Class = Context -- (self.__name:find'Context' == 1) and self.init and self or Context
 
     local function getters__index (t, k)
@@ -86,10 +85,10 @@ function Context:pxy(t, getters, setters)
                 return rawget
             end
         else
-            error(("Context index %s invalid"):format(k), 3)
+            error(("Context index %s invalid"):format(k), 2)
         end
     end})
-    getters = Class:_defaultGettersFactory(getters)
+    getters = Class._defaultGettersFactory(Class, getters)
 
     local function setters__index (t, k, v)
         self[k] = v
@@ -103,12 +102,12 @@ function Context:pxy(t, getters, setters)
                 return rawset
             end
         else
-            error(("Context index %s invalid"):format(k), 3)
+            error(("Context index %s invalid"):format(k), 2)
         end
     end})
+    setters = Class._defaultSettersFactory(Class, setters)
 
     local gettersMT, settersMT = getmetatable(getters), getmetatable(setters)
-    setters = Class:_defaultSettersFactory(setters)
     setmetatable(getters, nil) ; setmetatable(setters, nil)
     t, getters, setters = Proxy.new(Class, t or {}, getters, setters) --inheritance of sort (here inheriting from Proxy)
     setmetatable(getters, gettersMT); setmetatable(setters, settersMT)
@@ -126,6 +125,7 @@ function Context:pxy(t, getters, setters)
     t[0] = t[0] or self[0]
 
     t = setmetatable(t, Class)
+    ---@cast t Context
     return t, getters, setters
 end
 
@@ -180,7 +180,8 @@ function Context:__tostring()
         return Array.__tostring(self)
     end
     local r = Context.__name .. ": {\n"
-    for i = math.max(self.hpos, rawlen(self), self.arrlen), 1, -1 do
+    --print('Context.__tostring', self.hpos or 1, rawlen(self), self.arrlen or 0)
+    for i = math.max(self.hpos or 1, rawlen(self), self.arrlen or 0), 1, -1 do
         ---@TODO show variables ? (i < 0)
         r = r .. (i == self.hpos and "->" or "") .. "\t" .. tostring (self[i]) .. "\n"
     end
@@ -204,10 +205,10 @@ function Context:_defaultGettersFactory(t)
         pxy = self,
         --init = self,
         ----new = self,
-        --_defaultGettersFactory = self,
-        --_defaultSettersFactory = self,
-        --_defaultGetters = self,
-        --_defaultSetters = self,
+        _defaultGettersFactory = self,
+        _defaultSettersFactory = self,
+        _defaultGetters = self,
+        _defaultSetters = self,
 
         --methods
         push = self,
@@ -227,7 +228,6 @@ function Context:_defaultGettersFactory(t)
         stack  = rawget,
         parent = rawget,
         caller = rawget,
-        func   = rawget,
         _fun   = rawget, --a flag to know whether the context is a function
         --proxy (pseudo) fields
         head = function (stack) return rawget(stack, stack.hpos) end,
@@ -269,7 +269,6 @@ function Context:_defaultSettersFactory(t)
         stack  = rawset,
         parent = rawset,
         caller = rawset,
-        func   = rawset,
         _fun   = rawset, --a flag to know whether the context is a function
         --proxy fields
         head = function (stack, _head, v) rawset(stack, stack.hpos, v) end,

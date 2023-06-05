@@ -137,6 +137,9 @@ Not really an issue though, most languages are like that.
     - absorbing elements
     - compile time computation of constantes.
     - exploiting commutativiy for the above.
+- tail recursivity
+- consecutive clean
+    - more generally, the stack is filled with garbage and I'd be very surprised to not have let any way to access it. Both are issues to look into
 
 # Misc.
 ## DONE

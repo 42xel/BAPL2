@@ -161,7 +161,6 @@ function Compiler:getVariable(ast, default, islhs)
         ast.prefix = -1
         ctx = self.ctx[Symbol['caller']]
         while ctx do
-            print("getVariable2", ctx)
             varID = rawget(ctx, ast.var)
             if varID then
                 goto varIDdone
@@ -389,7 +388,6 @@ function metaCompiler:new(r)
     if not r.ctx then
         r.ctx = Cmpctx:new()
     end
-    print("cmp:new", r.ctx, pt(r.ctx))
 
     --initializing the main switch
     setmetatable(r, self)
@@ -481,16 +479,14 @@ function metaCompiler:new(r)
 
         ---@param state Compiler
         fun = Cargs(2) / function (state, ast) ---@TODO TODO
-            print("funassign0", ast.lhs.ref.tag, ast.exp.tag, state.ctx[Symbol['caller']])
-
             --a bad way to handle self recursivity without forward declaration : we expand the lhs into a dummy code first
             ---@TODO Ideally, left hand side should always be compiled and executed before rhs and we'd be done
             state:new{ctx = state.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
             --print("funassign1", ast.lhs.ref.tag, ast.exp.tag)
             if ast.lhs.param then state:new{ctx = state.ctx}(ast.lhs.param) end
 
-            ---@TODO : compile the static part of a function : the parameters and body. => staticFun
-            ---@TODO context manipulation not relevant yet. It will be when named parameters (or any parameters other than ?) are introduced.
+            ---compiles the static part of a function : the parameters and body. => staticFun
+            ---@TODO context manipulation not too relevant yet. It will be when named parameters (or any parameters other than ?) are introduced.
             local callerCtx = Cmpctx:new(nil, nil, state.ctx[Symbol['caller']])
 
             ---A bit hacky but ok.
@@ -501,22 +497,13 @@ function metaCompiler:new(r)
                 callerCtx = Cmpctx:new(nil, nil, callerCtx)
             end
             local funCtx = Cmpctx:new(nil, state.ctx[Symbol['parent']], callerCtx)
-            --print("funassign3", funCtx, ast.lhs.ref.tag, pt(funCtx))
-            --local oldCtx = r.ctx
-            --r.ctx = funCtx
-            local staticFun = state:new{ctx = funCtx}(ast.exp)  ---@TODO fix it's only exp if it's flat ?
-            --r.ctx = oldCtx
-            --print("funassign4", ast.lhs.ref.tag)
+            local staticFun = state:new{ctx = funCtx}(ast.exp) 
 
-            ---@TODO translate : init (staticFun, default values)
+            ---translates : init (staticFun, default values)
             ---see r.switch.fundef
 
-            ---@TODO translate : assign(ref, (init (staticFun, default values)))
+            ---translates : assign(ref, (init (staticFun, default values)))
             codeGen(state, nodeAssign(ast.lhs.ref, nodeFundef(ast.lhs.param, staticFun)))
-            --print("funassign6", ast.lhs.ref.tag)
-
-            -- Node{tag = 'func', 'param', 'exp'}(ast.lhs.param, ast.exp)))
-
         end * Cargs(2),
         [lpeg.Switch.default] = Cargs(2) * r.invalidAst,
     }
@@ -535,7 +522,7 @@ function metaCompiler:new(r)
         variable = Cargs(2) * Cc'load' / c_addCode * Cc(r.vars) / getVariable,
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
-        --a function definition
+        --The dynamic binding part of a function declaration (copying and binding the function to the environement it is created)
         ---@TODO make inline again
         ---@param state Compiler
         fundef = Cargs(2) / function (state, ast)
@@ -551,22 +538,18 @@ function metaCompiler:new(r)
         end,
         --a function call
         fun = Cargs(2) * Cc'clean' / c_addCode * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'param' / subCodeGen * Cc'call' / c_addCode,
-        --The dynamic binding part of a function declaration (copying and binding the function to the environement it is created)
-        --func = Cargs(2) / funcDef,
         --I should be able to write newarray higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
         new = Cargs(2) / newArray,
 --        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
         ---@param state Compiler
         block = Cargs(2) / function (state, ast)
             local oldCtx = state.ctx
-            print("block0", oldCtx, pt(oldCtx))
             state.ctx = Cmpctx:new(nil, oldCtx, oldCtx[Symbol['caller']])
             local p = state:blockSize()
             state:subCodeGen(ast, 'content')
             state:addCode'brek'
             p:honor(#state.ctx)
             state.ctx = oldCtx
-            print("block9", oldCtx, pt(oldCtx))
         end,
         unaryop = Cargs(2) * Cc'exp' / subCodeGen / codeOP.u / c_addCode,
         binop = Cargs(2) * Cc'exp1' / subCodeGen * Cc'up' / c_addCode * Cc'exp2' / subCodeGen / codeOP.b / c_addCode,

@@ -1,8 +1,16 @@
-# Final Project Report: [Project Name]
+# Final Project Report: FeAsKo
 
 ## Language Syntax
 
-In this section, describe the overall syntax of your language.
+### Expressions
+
+### Comments
+
+### Array
+
+### Blocks
+
+### Functions
 
 ## New Features/Changes
 
@@ -26,4 +34,3 @@ In this section, discuss the future of your language / DSL, such as deployabilit
 
 ## References
 
-List any references used in the development of your language besides this courses, including any books, papers, or online resources.

@@ -2,5 +2,5 @@
 
 @= ##div 6 ;
 
-@ = a3 = #div 3
+@ = a3 = #div 3 ; it is the division by 3
 @ = # a3 6

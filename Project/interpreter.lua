@@ -6,6 +6,7 @@ local Object = require "Object"
 local Stack = require"Stack"
 local Array = require "Array"
 require "utils"
+local Proxy = require"Proxy"
 local Context = require"Context"
 local VirtualContext = Context.VirtualContext
 
@@ -34,16 +35,29 @@ if _INTERPRETER_DEBUG == nil then
 end
 
 local function loadCtx(ctx, n, gmem)
+    local oldCtx, oldN = ctx, n
     if n == 0 then
         return gmem
     elseif n > 0 then
         while n > 0 do
             ctx = ctx.parent
             n = n - 1
+            if not ctx then
+                error(("prefix %s invalid at runtime in Context %s\t%s"):format(oldN, oldCtx, pt(oldCtx)), 2)
+            end
+        end
+        return ctx
+    elseif n < 0 then
+        while n < 0 do
+            ctx = ctx.caller
+            n = n + 1
+            if not ctx then
+                error(("prefix %s invalid at runtime in Context %s\t%s"):format(oldN, oldCtx, pt(oldCtx)), 2)
+            end
         end
         return ctx
     else
-        error("loadCtx():\tincorrect prefix")
+        error("loadCtx():\tincorrect prefix " .. oldN)
     end
 end
 
@@ -223,13 +237,13 @@ function Run:new(code, run)
             clean = function () vctx.stack:clean() end,
             load  = function()
                 pc = pc+1
-                local ctx = loadCtx(vctx.stack, code[pc], gmem)
+                local ctx = loadCtx(vctx, code[pc], gmem)
                 pc = pc + 1
                 write(vctx.stack, ctx[code[pc]])
             end,
             store = function()
                 pc = pc+1
-                local ctx = loadCtx(vctx.stack, code[pc], gmem)
+                local ctx = loadCtx(vctx, code[pc], gmem)
                 pc = pc + 1
                 ctx[code[pc]] = peek(vctx.stack)
             end,
@@ -251,44 +265,61 @@ function Run:new(code, run)
                     --print("toplevel")
                     return true
                 end
+                --litteral array declaration : we set the size at the end.
+                ---@TODO In a lower level VM, there might be a copy, or a conversion from Vector (C++) to array, or not.
                 if vctx.stack[0] == vctx.stack and vctx.stack.arrlen == 0 then
-                    vctx.stack.arrlen = rawlen(vctx.stack)  --litteral array declaration : we set the size at the end. In a lower level VM, there might be a copy, or a conversion from Vector (C++) to array, or not.
+                    vctx.stack.arrlen = rawlen(vctx.stack)
                 end
                 write(vctx.vtcxParent.stack, (vctx.stack[0]))
                 vctx = vctx.vtcxParent
             end,
-            bindFunc = function ()  ---@TODO : split into copy and bind, and use bind for other shenanigans ?
----@diagnostic disable-next-line: param-type-mismatch
-                vctx.parent.head = vctx.parent.head:cpy()
-                vctx.parent.head[0] = vctx.parent
-            end, ---@TODO TODO
+            fundef = function ()  ---@TODO : split into copy and bind, and use bind for other shenanigans ?
+                pc = pc + 1
+                vctx.parent.head = Context.pxy(code[pc], { --turning the static definition into a dynamic object
+                    [0] = vctx.parent.head,        --default value
+                    _fun = true,                   --to differentiate between arrays and functions.
+                    parent = vctx.parent,
+                })
+                --print("fundef", vctx.parent.head, vctx.parent.head.arrlen, vctx.parent.head[1])
+            end,
             call  = function()
-                assert(isFunction(vctx.parent.head), "call: not a function:\t" .. tostring(vctx.parent.head))
+                local param = vctx.parent.head
+                vctx.parent.hpos = vctx.parent.hpos - 1
 
+                assert(isFunction(vctx.parent.head), "call: not a function:\t" .. tostring(vctx.parent.head))
 ---@diagnostic disable-next-line: param-type-mismatch
-                run(vctx.parent.head:
-                    cpy())
-            end, ---@TODO TODO
+                local fni = vctx.parent.head:pxy{   --
+                    [0] = param,
+                    caller = code,-- vctx.caller,
+                }
+                run(fni, {
+                    vctx = VirtualContext:new{
+                        vtcxParent = vctx,
+                        parent = vctx.parent.head.parent,
+                        caller = fni,
+                    },
+                })
+            end,
             ret   = function()
-                assert(vctx.parent.hpos == 1, "Incorrect Stack head position upon return:\n" .. tostring(vctx.parent) .. "\t len:\t" .. vctx.parent.hpos)
-                if not vctx.parent.parent then
+                assert(vctx.ihpos == vctx.stack.hpos, "Incorrect Stack head position upon return:\n" .. tostring(vctx.parent) .. "\t len:\t" .. vctx.parent.hpos)
+                if not vctx.vtcxParent then
                     --print("toplevel")
                     return true
                 end
-                if rawlen(vctx.parent) == 0 then
-                    vctx.parent.parent:clean()
-                return true
-                end
-                local s = vctx.parent.parent.hpos
+
+                local s = vctx.vtcxParent.stack.hpos
                 if s == 0 then
                     print("ret: warning head position was zero")
                     s = 1
                 end
-                vctx.parent.parent.hpos = s - 1
-                vctx.parent.parent:push(table.unpack(vctx.parent, 1, rawlen(vctx.parent)))
-                vctx.parent.parent.hpos = s
+                vctx.vtcxParent.stack.hpos = s - 1
+                vctx.vtcxParent.stack:push(table.unpack(vctx.stack, vctx.ihpos, rawlen(vctx.stack)))
+                vctx.vtcxParent.stack.hpos = vctx.vtcxParent.stack.hpos + 1
+                vctx.vtcxParent.stack:clean() -- doesn't beacuse it's a proxy ? or because up is executed at the wrong (virtual) stack ?
+                vctx.vtcxParent.stack.hpos = s
+
                 return true
-            end, ---@TODO TODO
+            end,
         }
         setmetatable(run.switch, {__index = function()
                 print(trace and trace:unpack())
@@ -300,6 +331,7 @@ function Run:new(code, run)
             __call = trace and function (self)
                 pc = pc + 1
                 if _INTERPRETER_DEBUG then  print(trace:unpack()) end ---@TODO make better
+                --print("run:__call", code, pt(code))
                 trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
                 return self[code[pc]]()
             end or function (self)

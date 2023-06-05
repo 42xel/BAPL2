@@ -128,17 +128,26 @@ function Compiler:invalidAst(ast)
 end
 function Compiler:getVariable(ast, default, islhs)
     local ctx = self.ctx
+    --print("getVariable0", ast, ast.var, default, islhs, ctx, pt(ctx))
     local varID
     if type(ast.prefix) == 'number' then
         if ast.prefix == 0 then --global variable
             ctx = default
         elseif ast.prefix < 0 then  --dynamic parameter
-            for _ = 1, ast.prefix do
+            for _ = -1, ast.prefix, -1 do
                 ctx = ctx[Symbol['caller']]
+                if not ctx then
+                    error(("prefix %s invalid at compile time in static context %s")
+                        :format(ast.prefix, pt(self.ctx)))
+                end
             end
         elseif ast.prefix > 0 then  --lexical local variable
             for _ = 1, ast.prefix do
                 ctx = ctx[Symbol['parent']]
+                if not ctx then
+                    error(("prefix %s invalid at compile time in static context %s")
+                        :format(ast.prefix, pt(self.ctx)))
+                end
             end
         end
     elseif ast.prefix == nil then --no prefix : let's figure out what context it refers to
@@ -152,12 +161,13 @@ function Compiler:getVariable(ast, default, islhs)
         ast.prefix = -1
         ctx = self.ctx[Symbol['caller']]
         while ctx do
+            print("getVariable2", ctx)
             varID = rawget(ctx, ast.var)
             if varID then
                 goto varIDdone
             end
-            ast.prefix = ast.prefix + 1
-            ctx = ctx[Symbol['parent']]
+            ast.prefix = ast.prefix - 1
+            ctx = ctx[Symbol['caller']]
         end
         --if ctx[Symbol['caller']] then
         --    varID = rawget(ctx[Symbol['caller']], ast.var)
@@ -309,35 +319,6 @@ function Compiler:blockSize(pSize)
     return pSize
 end
 
------@param ast {tag:'func', param:AST, exp:AST}
---function Compiler:funcDef (ast)
---    self:addCode'block'
---    self:addCode(0)
---    if ast.param then
---        self:subCodeGen(ast, 'param')
---    end
---    self:codeGen(preParams)
---
---    local funcCtx = self.Cmpctx:new()
---    local oldGlobalCtx = self.vars
---      self.vars = funcCtx 
---      
---      local oldCallerCtx = self.ctx.caller
---      self.ctx.caller = self.vars
---      
-----      local p = self:blockSize()
---      self:subCodeGen(ast, 'content')
---      self:addCode'brek'
--- -      p:honor(#self.vars)
---      self.ctx = oldCtx
---     --info to retrieve : number of parameters
---      --name of parameters corespondance : new to put in a local, parentless ctx (hte static caller of the function to build ?), existing to retrieve in lexical context
---      
---      local func = Context:new(self:new{ctx = self.ctx}(ast.exp))
---      Cc'bindFunc' / c_addCode
---  end
---end
-
 ---@class metaCompiler : Compiler
 --The compiler metatable. contains the metamethods as welle as method related to creation
 local metaCompiler = {__name = "Compiler"}
@@ -356,7 +337,7 @@ function metaCompiler:new(r)
         function self:__call(ast)
             self:codeGen(ast)
             self:addCode'ret'
-            self.code._fun = true
+            --self.code._fun = true
             return self.code
         end
     end
@@ -408,6 +389,7 @@ function metaCompiler:new(r)
     if not r.ctx then
         r.ctx = Cmpctx:new()
     end
+    print("cmp:new", r.ctx, pt(r.ctx))
 
     --initializing the main switch
     setmetatable(r, self)
@@ -499,22 +481,39 @@ function metaCompiler:new(r)
 
         ---@param state Compiler
         fun = Cargs(2) / function (state, ast) ---@TODO TODO
+            print("funassign0", ast.lhs.ref.tag, ast.exp.tag, state.ctx[Symbol['caller']])
+
             --a bad way to handle self recursivity without forward declaration : we expand the lhs into a dummy code first
             ---@TODO Ideally, left hand side should always be compiled and executed before rhs and we'd be done
-            r:new{ctx = r.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
-            if ast.lhs.param then r:new{ctx = r.ctx}(ast.lhs.param) end
+            state:new{ctx = state.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
+            --print("funassign1", ast.lhs.ref.tag, ast.exp.tag)
+            if ast.lhs.param then state:new{ctx = state.ctx}(ast.lhs.param) end
 
             ---@TODO : compile the static part of a function : the parameters and body. => staticFun
             ---@TODO context manipulation not relevant yet. It will be when named parameters (or any parameters other than ?) are introduced.
-            local callerCtx = Cmpctx:new(nil, nil, r.ctx[Symbol['caller']])
-            local funCtx = Cmpctx:new(nil, r.ctx[Symbol['parent']], callerCtx)
-            local staticFun = r:new{ctx = funCtx}(ast.exp)
+            local callerCtx = Cmpctx:new(nil, nil, state.ctx[Symbol['caller']])
+
+            ---A bit hacky but ok.
+            ---@TODO Consider rewritting after anonymous functions are a thing. Ideally, functinos of function should be 
+            local funAST = ast.lhs.ref
+            while funAST.tag == 'fun' do
+                funAST = funAST.ref
+                callerCtx = Cmpctx:new(nil, nil, callerCtx)
+            end
+            local funCtx = Cmpctx:new(nil, state.ctx[Symbol['parent']], callerCtx)
+            --print("funassign3", funCtx, ast.lhs.ref.tag, pt(funCtx))
+            --local oldCtx = r.ctx
+            --r.ctx = funCtx
+            local staticFun = state:new{ctx = funCtx}(ast.exp)  ---@TODO fix it's only exp if it's flat ?
+            --r.ctx = oldCtx
+            --print("funassign4", ast.lhs.ref.tag)
 
             ---@TODO translate : init (staticFun, default values)
             ---see r.switch.fundef
 
             ---@TODO translate : assign(ref, (init (staticFun, default values)))
             codeGen(state, nodeAssign(ast.lhs.ref, nodeFundef(ast.lhs.param, staticFun)))
+            --print("funassign6", ast.lhs.ref.tag)
 
             -- Node{tag = 'func', 'param', 'exp'}(ast.lhs.param, ast.exp)))
 
@@ -537,6 +536,7 @@ function metaCompiler:new(r)
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,
         --a function definition
+        ---@TODO make inline again
         ---@param state Compiler
         fundef = Cargs(2) / function (state, ast)
             addCode(state, 'clean')
@@ -550,7 +550,7 @@ function metaCompiler:new(r)
             return state, ast
         end,
         --a function call
-        fun = Cargs(2) * Cc'ref' / subCodeGen * Cc'call' / c_addCode,
+        fun = Cargs(2) * Cc'clean' / c_addCode * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'param' / subCodeGen * Cc'call' / c_addCode,
         --The dynamic binding part of a function declaration (copying and binding the function to the environement it is created)
         --func = Cargs(2) / funcDef,
         --I should be able to write newarray higher level. Either in the parser, but it seems more work, or here but it requires function accessing the stack
@@ -558,13 +558,15 @@ function metaCompiler:new(r)
 --        Array = Cargs(2) * Cc'size' / subCodeGen * Cc'new' / c_addCode, ---only returns a ref to the array, does not not assign it.
         ---@param state Compiler
         block = Cargs(2) / function (state, ast)
-            local oldCtx = r.ctx
-            r.ctx = Cmpctx:new(nil, oldCtx)
+            local oldCtx = state.ctx
+            print("block0", oldCtx, pt(oldCtx))
+            state.ctx = Cmpctx:new(nil, oldCtx, oldCtx[Symbol['caller']])
             local p = state:blockSize()
             state:subCodeGen(ast, 'content')
             state:addCode'brek'
-            p:honor(#r.ctx)
-            r.ctx = oldCtx
+            p:honor(#state.ctx)
+            state.ctx = oldCtx
+            print("block9", oldCtx, pt(oldCtx))
         end,
         unaryop = Cargs(2) * Cc'exp' / subCodeGen / codeOP.u / c_addCode,
         binop = Cargs(2) * Cc'exp1' / subCodeGen * Cc'up' / c_addCode * Cc'exp2' / subCodeGen / codeOP.b / c_addCode,

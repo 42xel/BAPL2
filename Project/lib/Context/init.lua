@@ -1,5 +1,5 @@
 ---@alias ContextElement number|Context|nil
---local pt = require "pt".pt
+local pt = require "pt".pt
 --local Array = require "Array"
 local Proxy = require "Proxy"
 local Array = require "Array"
@@ -44,7 +44,7 @@ function Context:new(t)
 
     t.arrlen = rawget(t, "arrlen") or rawlen(t)
     t.hpos = rawget(t, "hpos") or 1
-    t.ihpos = rawget(t, "ihpos") or 1
+    t.ihpos = rawget(t, "ihpos") or t.hpos
     if not t.memlen then
         t.memlen = - 1
         while rawget(t, t.memlen) do
@@ -52,7 +52,7 @@ function Context:new(t)
         end
         t.memlen = - 1 - t.memlen
     end
-    t[0] = t
+    t[0] = t[0] or t
     --t.parent = self   --don't if you don't need I guess ?
     --t.caller = self   --caller ccorresponds to `caller \ callee` ?
 
@@ -60,15 +60,73 @@ function Context:new(t)
 end
 
 function Context:cpy(t)
-    --t.arrlen = t.arrlen or self.arrlen
-    --t.hpos = t.hpos or self.hpos
-    --t.memlen = t.memlen or self.memlen
-    --t.parent = t.parent or self.parent
     t = t or {}
     for key, value in pairs(self) do
         t[key] = rawget(t, key) or value
     end
     return Context:new(t)
+end
+
+--A context proxy, which reads data (indices > 0) from a context (self) but holds different metadata.
+--mostly used for functions, whose definition, value and call instances all share the same static body, but may differ in parent, caller, parameter value ...
+---@TODO use that to make virtual contexts ?
+---@TODO (vm rework) make Context much simpler with a data field which is an array/vector
+function Context:pxy(t, getters, setters)
+
+    local Class = Context -- (self.__name:find'Context' == 1) and self.init and self or Context
+
+    local function getters__index (t, k)
+        return self[k]
+    end
+    getters = getters or setmetatable({}, {__index = function (_, k)
+        if type(k) == 'number' then
+            if k > 0 then
+                return getters__index
+            else
+                return rawget
+            end
+        else
+            error(("Context index %s invalid"):format(k), 3)
+        end
+    end})
+    getters = Class:_defaultGettersFactory(getters)
+
+    local function setters__index (t, k, v)
+        self[k] = v
+    end
+    setters = setters or setmetatable({}, {
+        __index = function (_, k)
+        if type(k) == 'number' then
+            if k > 0 then
+                return setters__index
+            else
+                return rawset
+            end
+        else
+            error(("Context index %s invalid"):format(k), 3)
+        end
+    end})
+
+    local gettersMT, settersMT = getmetatable(getters), getmetatable(setters)
+    setters = Class:_defaultSettersFactory(setters)
+    setmetatable(getters, nil) ; setmetatable(setters, nil)
+    t, getters, setters = Proxy.new(Class, t or {}, getters, setters) --inheritance of sort (here inheriting from Proxy)
+    setmetatable(getters, gettersMT); setmetatable(setters, settersMT)
+
+    t.arrlen = rawget(t, "arrlen") or rawlen(self)
+    t.hpos = rawget(t, "hpos") or self.hpos or 1
+    t.ihpos = rawget(t, "ihpos") or t.hpos
+    if not t.memlen then
+        t.memlen = - 1
+        while rawget(t, t.memlen) do
+            t.memlen = t.memlen - 1
+        end
+        t.memlen = - 1 - t.memlen
+    end
+    t[0] = t[0] or self[0]
+
+    t = setmetatable(t, Class)
+    return t, getters, setters
 end
 
 function Context:push(...)   --pushes one or several values to the stack and returns self, for chaining
@@ -129,7 +187,7 @@ function Context:__tostring()
     return r .. "}"
 end
 
-function Context:_defaultGettersFactory()
+function Context:_defaultGettersFactory(t)
     local function __index (stack, k)
         if type(k) ~= 'number' then ---@TODO should never happen, remove
             error("Context key, type error:\t" .. type(k) .. " " .. tostring(k))
@@ -137,10 +195,20 @@ function Context:_defaultGettersFactory()
 --        assert(-stack.memlen <= k and k <= stack.arrlen, ("Context index(%s) out of bounds (-%s, %s)"):format(k, stack.memlen, stack.arrlen))
         return rawget(stack, k)
     end
-    self._defaultGetters = setmetatable({
+    local defaultGetters = self._defaultGetters or setmetatable({
+        --inherited fields
+        __name = self,
         --inherited methods
         get = self,
         set = self,
+        pxy = self,
+        --init = self,
+        ----new = self,
+        --_defaultGettersFactory = self,
+        --_defaultSettersFactory = self,
+        --_defaultGetters = self,
+        --_defaultSetters = self,
+
         --methods
         push = self,
         rawPeek = self,
@@ -158,7 +226,7 @@ function Context:_defaultGettersFactory()
         ihpos  = rawget,
         stack  = rawget,
         parent = rawget,
---        caller = rawget,
+        caller = rawget,
         func   = rawget,
         _fun   = rawget, --a flag to know whether the context is a function
         --proxy (pseudo) fields
@@ -170,9 +238,18 @@ function Context:_defaultGettersFactory()
         if type(k) == 'number' then return __index else
             error(("Array index %s invalid"):format(k), 2) end
     end})
-    return self._defaultGetters
+
+    if not t then
+        self._defaultGetters = defaultGetters
+        return self._defaultGetters
+    else
+        for key, value in pairs(defaultGetters) do
+            rawset(t, key, rawget(t, key) or value)
+        end
+        return setmetatable(t, getmetatable(t) or getmetatable(defaultGetters))
+    end
 end
-function Context:_defaultSettersFactory()
+function Context:_defaultSettersFactory(t)
     local __index = function (stack, k, v)
         if type(k) ~= 'number' then --should not happen
             error("Array key, type error:\t" .. type(k) .. " " .. tostring(k))
@@ -183,7 +260,7 @@ function Context:_defaultSettersFactory()
 --        end
         rawset(stack, k, v)
     end
-    self._defaultSetters = setmetatable({
+    local defaultSetters = setmetatable({
         --fields
         memlen = rawset,
         arrlen = rawset,
@@ -191,7 +268,7 @@ function Context:_defaultSettersFactory()
         ihpos  = rawset,
         stack  = rawset,
         parent = rawset,
---        caller = rawset,
+        caller = rawset,
         func   = rawset,
         _fun   = rawset, --a flag to know whether the context is a function
         --proxy fields
@@ -200,7 +277,16 @@ function Context:_defaultSettersFactory()
         if type(k) == 'number' then return __index else
             error(("Context index %s invalid"):format(k), 2) end
     end})
-    return self._defaultSetters
+
+    if not t then
+        self._defaultSetters = defaultSetters
+        return self._defaultSetters
+    else
+        for key, value in pairs(defaultSetters) do
+            rawset(t, key, rawget(t, key) or value)
+        end
+        return setmetatable(t, getmetatable(t) or getmetatable(defaultSetters))
+    end
 end
 
 Proxy(Context)

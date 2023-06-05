@@ -1,0 +1,9 @@
+# incr 0 = ? + 1
+
+@ = #incr;
+3 + 4 + 98;
+@ = #incr;
+@ = # incr (5) 
+@ = #incr;
+@ = #incr;
+@ = # incr (5) 

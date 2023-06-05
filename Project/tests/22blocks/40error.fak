@@ -1,0 +1,3 @@
+{.a = 6}
+@ = .a
+;variable not declared, it should error.

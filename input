@@ -1,0 +1,104 @@
+;solving the 8 queens problem
+
+~N = 8
+! (@ = 1 << (N * N - 1)) => return ;checking that we are in 64 bits
+
+;we'll keep a danger grid encoded as a 64 bit integer
+@ = ~LINE = (1 << N) - 1
+@ = 0xFF    ; for verification
+@ = ~COLUMN = {
+    . = 1 
+;using array initialisation as a for loop
+    new[N - 1] = (. = . || (. << N) )
+}
+@ = 0x0101010101010101
+@ = ~DIAG1 = 
+{
+    . = 1
+    new[N - 1] = (. = . || (. << (N+1) ))
+}
+@ = 0x8040201008040201
+@ = ~DIAG2 = 
+{
+    . = 1 << N - 1
+    new[N - 1] = (. = . || (. << (N-1) ))
+}
+@ = 0x0102040810204080
+
+; checks whether position ?? ? of ??? is free from attack
+;??? is an integer encoding all the currently threatened position of the board
+;?? is 0 based, ? is 0 based
+### .isplaceok = ! ((1 << (?? + 8 * ?)) && ???)
+;it won't be used but it's good for sport
+
+; ? is a 1 based array of 1 based heights of queens
+;it is tranformed into an 8 by 8 table for display
+# .printsolution = {.=
+    @ = new[.i=N] = (
+            new[.j=N] = (?[i]  == j, (j = j-1)),
+            (i = i-1)
+            )
+}
+; # printsolution (new [._ = N] = (_, (_ = _ - 1)) ) ;
+
+; update danger integer ??? with respect to the addition of queen of coordinate ?? ?, 0 based
+### addonequeen 0 = (
+??? || (LINE << (8 * ?))
+    || (COLUMN << ??)
+    || (DIAG1 << (8 * (? - ??)))
+    || (DIAG2 << (8 * (?? + ? - 7)))
+)
+;;{{ test
+@ = ##(# addonequeen) 0 0 ;
+@ = LINE + COLUMN + DIAG1 - 2;
+
+@ = ##(# addonequeen) 0 7 ;
+@ = (LINE << 7 * 8) || COLUMN || DIAG2;
+
+@ = ##(# addonequeen) 7 0 ;
+@ = LINE || (COLUMN << 7) || DIAG2;
+;}}
+
+;given a danger line, gives an Iterator over the safe column number, 1 based
+# .itsafe LINE = {
+    .nil = ()   ; this is hacky, we could return zero instead.
+    .i = 0
+    #.= (
+        while (??) (
+            ?? % 2 => (?? = ?? // 2
+                return (i = i + 1) ) ;
+            ?? = ?? // 2
+            i = i + 1
+        )
+        ;the whole beauty of it is that ?? is persistent
+        return 0
+    ) 
+}
+;{{
+.it = #itsafe 45
+new [8] = (@ = #it)
+;}}
+
+
+; add to board ??? all queens from ?? to N with respect to danger integer ?
+### .addqueenlocal = (
+    if ?? > N
+        return #printsolution ???;
+; otherwise we try to place the ??-th queen
+    {
+        .nil = ()
+        ;@ = 666
+        .it = #itsafe ((((!! ?) >> (N * (?? - 1))) && LINE) ) ;
+        while ( .j = #it ) (
+            ???[??] = j
+            .r = (###addqueenlocal ??? (?? + 1) (###addonequeen ? (j-1) (??-1) ))
+            if r (return (r))
+
+            ???[??] = nil 
+            0 ; for some mysterious reason, I can't finish with a nil statement
+        )
+    }
+    return 0 ; it's important to return falsy, as it' not done automatically
+)
+
+### addqueenlocal (new [N]) 1 0;

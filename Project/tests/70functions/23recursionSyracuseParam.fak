@@ -1,0 +1,12 @@
+SUCCESS = 0
+;;{{
+# Syracuse = (
+;prints ? and if it is 1 stops
+    ((@ = ?) == 1 => SUCCESS)
+;elseif ? is even, multiply it by 3, add 1 and call Syracuse
+    => ( ? % 2 => # Syracuse (3 * ? + 1))
+;else half ? and call Syracuse
+    => ( # Syracuse (? // 2) );
+)
+# Syracuse @ ;
+;}}

@@ -1,0 +1,3 @@
+.f = pow2 = {#. = if ? 2 * #. (?-1) else 1} ;
+# pow2 = 7 ; we can no longer change what the récursive function referes to
+@ = # f 5 ; 32

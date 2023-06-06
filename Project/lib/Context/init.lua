@@ -158,8 +158,12 @@ function Context:peek(n)    --peeks at the n top values returns them
     return table.unpack(self:rawPeek(n))
 end
 function Context:clean()
-    for i = math.max(1, self.hpos), rawlen(self) do
-        rawset(self, i, nil)
+    local i = math.max(1, self.hpos)
+    while self [i] ~= nil or i < rawlen(self) do
+    --for i = math.max(1, self.hpos), rawlen(self) do
+        --rawset(self, i, nil)
+        self[i] = nil
+        i = i + 1
     end
 end
 --function Context:pack()

@@ -1,0 +1,11 @@
+; a mini calculator. It asks for a binary operation, then for it's two operands.
+@ = ## {
+; 1 for add
+    ( ##._= ?? + ? ),
+; 2 for minus
+    ( ##._= ?? - ? ),
+; 3 for multiplication
+    ( ##._= ?? * ? ),
+; 4 for division
+    ( ##._= ?? / ? ),
+}[@] @ @

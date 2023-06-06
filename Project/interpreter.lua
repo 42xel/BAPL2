@@ -267,9 +267,9 @@ function Run:new(code, run)
                 }
             end,
             brek  = function()
-                assert(vctx.stack.ihpos == vctx.stack.hpos,
+                assert(vctx.ihpos == vctx.stack.hpos,
                     "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
-                    .. "\t ipos:\t" .. vctx.stack.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
+                    .. "\t ipos:\t" .. vctx.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
                     --print("toplevel")
                     return true
@@ -315,9 +315,9 @@ function Run:new(code, run)
                 })
             end,
             ret   = function()
-                assert(vctx.stack.ihpos == vctx.stack.hpos,
+                assert(vctx.ihpos == vctx.stack.hpos,
                     "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
-                    .. "\t ipos:\t" .. vctx.stack.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
+                    .. "\t ipos:\t" .. vctx.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
                     --print("toplevel")
                     return true

@@ -1,7 +1,6 @@
 SUCCESS = 0
 
 n = @
-;TODO : add param ?
 # Syracuse = (
 ;prints n and if it is 1 stops
     ((@ = n) == 1 => SUCCESS)

@@ -42,7 +42,6 @@ Not really an issue though, most languages are like that.
     - If anything, you can compose functions. (TODO examples)
     - Besides with more functional/promising shenanigans, post processing is probably possible still, something like `{ \To \Number a }` or whatever.
 - make functions : `id # = exp` : `id` is set to the function which yields `exp`. `id #` to call it. High prio. So no anonymous function ? not necessarilly. `(#= exp)` could be one syntax, remember, affectation also yields result.
-## TODO
 
 - erase the difference between mem and array and IntStack ? => context ?
     - positive is stack
@@ -65,6 +64,11 @@ Not really an issue though, most languages are like that.
     - syntax : `.bla` or `.\bla` for local ? <br>
     `~bla` or `~\bla` for global/toplevel ? <br>
     `bla` to infer ?
+- anonymous functions and expression functions ? For now, one can only call a function stored (in a variable or an array).
+    - The compiler is completely ready for it already, you jsut need the parser.
+    - You probably want some dynamic type check to not call non functions (that's useful even before considering anonymous functions).
+- `?` for curryfication ?
+## TODO
 - syntax for parameters ? ideally, parameters are "just" codeblock concatenation with context fusion. `block1 \ block2`.
     - so make that codeblock fusion with context fusion.
     - what if `exp` in `id # = exp` is not a block, just an expression ?
@@ -87,10 +91,6 @@ Not really an issue though, most languages are like that.
     - some lighter syntax, like `*{2,3} --> 2,3` (inspired by C pointers syntax) ? I'm not a fan of overloading `*`to be honest.
     How about `¤` instead ?
 - varargs ?
-- anonymous functions and expression functions ? For now, one can only call a function stored (in a variable or an array).
-    - The compiler is completely ready for it already, you jsut need the parser.
-    - You probably want some dynamic type check to not call non functions (that's useful even before considering anonymous functions).
-- `?` for curryfication ?
 - flatten the code and use only gotos ? there are pros and con, but mostly no.
     - With flatten, I'd have to handle the callstack entirely myself. That's something I wat I guess, but also, no.
 - think about tail recursivity.
@@ -113,13 +113,13 @@ Not really an issue though, most languages are like that.
 # going further
 ## DONE
 - What of control structure blocks (if, while) ? SHould we recommend writing them with parentheses (and semicolons) rather than brackets ? It doesn't change much tbh. If you're crazy enough need/want to to `a = if cond stat`, you should know what you need (paren block or unpacking). If you you just want regular if and while with scoping, nothing wrong with using brackets and not using the result. 
+- context/clocks
+    - `{ . = 5, 7}` or maybe `{ . ..= 5, 7}` for a block to set its own value, as a way to return. `.$ \ exp` to set a callback function. `.$ \ (.= exp)` or maybe even `.$ \,= exp` to set a return value
 ## TODO
 - Promises
     - similar to function blocks but with substitution instead of binding, and callbacks instead of concatenation ?
     - how to make them disappear ? What's the equivalent of passing arguments by reference ? Do we need one different symbol per type of reference (types are at least functions, proactive promises and lazy promises) ?<br>
     Ideally, that symbol(s) is(are) only put in the `parametrizationBlock̀`. Maybe with binding ? Something ending with ` \\ (?a = a)` ? **Maybe passing by reference is actually the default behaviour and passing by value is the one requiring some work in the `parametrizationBlock̀`**. For named parameters, it could be as simple as `.a = a` to pass by value, versus just `(a)` to pass by reference. For numbered parameters, it pasisng by value could be the defalut, or there could be 2 operators, `\=` and `\.=`.
-- context/clocks
-    - `{ . = 5, 7}` or maybe `{ . ..= 5, 7}` for a block to set its own value, as a way to return. `.$ \ exp` to set a callback function. `.$ \ (.= exp)` or maybe even `.$ \,= exp` to set a return value
 
 # Better error message
 ## DONE

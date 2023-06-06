@@ -1,0 +1,9 @@
+# mem = {
+    .nil = ();
+    .val = ?;
+    #.= if ? == nil val else val = ?
+}
+a = # mem 3;
+@ = #a;
+@ = #a 7;
+@ = #a;

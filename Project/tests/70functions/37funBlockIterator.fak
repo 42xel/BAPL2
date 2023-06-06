@@ -1,3 +1,2 @@
-# range = {. = new [.size = ?] =
-    1 + {.= size = size - 1} } ;
+# range = new [?, (? = ? + 1) ] = (? = ? - 1)
 @ = #range 10

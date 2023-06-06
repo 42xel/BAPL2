@@ -213,7 +213,7 @@ On top of general efficiency consideration, a particular problem they raise in P
 That's the main reasons why, after some back and forth, I made function prefix, so they don't clash with indexed pattern and make them generally easier to parse.
 It raises the quesition of priority : what does
 ```#a[0]```
-mean ? because the terse `#a,[0]` unambiguously means `(#a)[0]`, `#a[0]` must canonically mean `#(a[0])`
+mean ? because the terse `#a,[0]` should unambiguously means `(#a)[0]`, `#a[0]` must canonically mean `#(a[0])`
 
 ]]
 _READ_INTRICATEPATTERNS = nil

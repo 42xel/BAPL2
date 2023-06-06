@@ -178,7 +178,7 @@ The four current types are :
 
 For logical operators, the number `0` is false, and everything else is considered true.
 When we can't be lazy about hte truthy value an expression evaluates to, such as `!0`, `1` is used to denote true.
-The value `nil` is also falsy, but don't use it.
+The value `nil` is not falsy, and you shouldn't use it.
 
 Did I mention that you shouldn't use nil values ? because you shouldn't.
 If you still want to use `nil`, as you shouldn't, 2 current reliable ways to get a `nil` value are :
@@ -676,6 +676,7 @@ For production, :
     * pondering about memory allocation
     * Rewrite the virtual machine in Java/Kotlin | Rust | C/C++/D, mostly depending on choices for memory allocation.
     As a register machine ideally.
+    * precedence climbing.
     * ponder transpilation into a popular language ??
 * New Language feature
     * named parameters

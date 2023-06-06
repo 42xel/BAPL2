@@ -1,5 +1,22 @@
 # Final Project Report: FeAsKo
 
+## Preamble
+The code source is in the folder Project.
+All the files there baring lpeg.so and pt.lua have been entirely written by myself.
+
+### Usage
+lua version 5.4.2 or above is recommended. If I remember correctly 5.3 or above is neessary because of changes in file opening syntaxes.
+
+Only test on linux, I have no idea how it plays with Windows filenames for example.
+
+All the commands are to be run from the `Project/` folder, the filename and foldername to be given from 
+
+| name | command(s) | description |
+|-|-|-|
+| main | `lua main.lua <filename>` | Parses, compiles and runs the designated file as interpreted in the language. In the standard outputs, it prints : the content of the file, the parsed AST, the compiled opcode, the contenet of the file again. It then runs the program which may interact with both the default input and output. Lastly, it prints the stack as it is at the n end of the script execution. |
+| input | `lua main.lua ../input` | Main applied to the input program |
+| test | `lua tests/test.lua <filename>` <br> `lua tests/test.lua <foldername>/` | Execute (calls main) one or several scripts specified by a motif, decorating the outputs with some additional informations (script name). It waits for the user to press enter between each script. |
+
 ## Language Syntax
 
 ### Numerals
@@ -66,7 +83,7 @@ In addition to serving as optional, and sometimes mandatory separators, semicolo
 
 * A semicolons as the first character of a line is the start of a pure comment.
 * A semicolons after an expression, on the same line, is an expression separator and the start of a comment
-* A semicolons preceded only by space on it's line is undefined behaviour, meaning I know what it does and want it the other way, so don't use it.
+* A semicolons preceded only by space on it's line is undefined behaviour, meaning I know what it does and want it the other way, so don't use it for now.
 
 In a sense, semicolon as separator have the lowest priority, they separate only fully formed expressions.
 
@@ -77,8 +94,8 @@ Comments are delimited as follow :
 
 For example, `7-3`,
 ```
-7
--3
+7-
+3
 ```
 ```
 7
@@ -540,7 +557,7 @@ I haven't seen any major bug related to scoping, howevr, many things haven't bee
 Blocks and functions have great synergy together, this subsection is dedicated to it.
 
 First it's important to mention that functions (or if, or else) by default do not create a new scope.
-New scopes are created exactly by blocks.
+New scopes are created exactly by brace delimited blocks, with the exception of the whole program itself, which also is its own toplevel scope without requiring braces to materialize (that's what enables writing local variable at top level).
 
 FeAsKo lacks a dedicated syntax for anonymous functions, but the following idioms covers that need :
 ```

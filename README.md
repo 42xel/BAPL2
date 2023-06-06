@@ -14,7 +14,7 @@ All the commands are to be run from the `Project/` folder, the filename and fold
 | name | command(s) | description |
 |-|-|-|
 | main | `lua main.lua <filename>` | Parses, compiles and runs the designated file as interpreted in the language. In the standard outputs, it prints : the content of the file, the parsed AST, the compiled opcode, the contenet of the file again. It then runs the program which may interact with both the default input and output. Lastly, it prints the stack as it is at the n end of the script execution. |
-| input | `lua main.lua ../input` | Main applied to the input program |
+| input | `lua main.lua ../input` | Main applied to the input program. The input program solves the 8 queen problem while  |
 | test | `lua tests/test.lua <filename>` <br> `lua tests/test.lua <foldername>/` | Execute (calls main) one or several scripts specified by a motif, decorating the outputs with some additional informations (script name). It waits for the user to press enter between each script. |
 
 ## Language Syntax

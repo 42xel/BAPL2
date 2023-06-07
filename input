@@ -81,24 +81,26 @@ new [8] = (@ = #it)
 
 
 ; add to board ??? all queens from ?? to N with respect to danger integer ?
-### .addqueenlocal = (
+### .addqueenlocal =
+{
     if ?? > N
         return #printsolution ???;
+        
 ; otherwise we try to place the ??-th queen
     {
-        .nil = ()
-        ;@ = 666
+        ._addqueenlocal = ##addqueenlocal ??? (?? + 1);
+        ._addonequeen = #addonequeen ?;
         .it = #itsafe ((((!! ?) >> (N * (?? - 1))) && LINE) ) ;
         while ( .j = #it ) (
             ???[??] = j
-            .r = (###addqueenlocal ??? (?? + 1) (###addonequeen ? (j-1) (??-1) ))
-            if r (return (r))
-
-            ???[??] = nil 
-            0 ; for some mysterious reason, I can't finish with a nil statement
+            .r = (#_addqueenlocal (##_addonequeen (j-1) (?? - 1) ))
+;            .r = (###addqueenlocal ??? (?? + 1) (###addonequeen ? (j-1) (??-1) ))
+            if r (return (r));
         )
     }
-    return 0 ; it's important to return falsy, as it' not done automatically
-)
+    return 0 ; it's important to return falsy, as it's not done automatically
+}
 
 ### addqueenlocal (new [N]) 1 0;
+
+return 0

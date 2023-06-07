@@ -5,17 +5,17 @@ The code source is in the folder Project.
 All the files there baring lpeg.so and pt.lua have been entirely written by myself.
 
 ### Usage
-lua version 5.4.2 or above is recommended. If I remember correctly 5.3 or above is neessary because of changes in file opening syntaxes.
+lua version 5.4.2 or above is recommended. If I remember correctly 5.3 or above is neessary because of changes in file opening syntaxe.
 
-Only test on linux, I have no idea how it plays with Windows filenames for example.
+Only tested on linux, I have no idea how it plays with Windows filenames for example.
 
-All the commands are to be run from the `Project/` folder, the filename and foldername to be given from there as well.
+All commands are to be run from the `Project/` folder, and the filenames and foldernames to be given from there as well.
 
 | name | command(s) | description |
 |-|-|-|
-| main | `lua main.lua <filename>` | Parses, compiles and runs the designated file as interpreted in the language. In the standard output, it prints : the content of the file, the parsed AST, the compiled opcode, the content of the file again. It then runs the program which may interact with both the default input and output. Lastly, it prints the stack as it is at the n end of the script execution. |
+| main | `lua main.lua <filename>` | Parses, compiles and runs the designated file as interpreted in the language. In the standard output, it prints : the content of the file, the parsed AST, the compiled opcode, the content of the file again. It then runs the program which may interact with both the default input and output. Lastly, it prints the stack as it is at the end of the script execution. |
 | input | `lua main.lua ../input` | Main applied to the input program. The input program solves the 8 queens problem while demonstrating many specificities of the language. |
-| test | `lua tests/test.lua <filename>` <br> `lua tests/test.lua <foldername>/` | Execute (calls main) one or several scripts specified by a motif, decorating the outputs with some additional informations (script name). It waits for the user to press enter between each script. |
+| test | `lua tests/test.lua <filename>` <br> `lua tests/test.lua <foldername>/` | Executes (calls main on) one or several scripts specified by a motif, decorating the outputs with some additional informations (script name). It waits for the user to press enter between each script. |
 
 ## Language Syntax
 
@@ -42,7 +42,7 @@ Here is a table of supported operators in decreasing order of precedence :
 | operator | meaning | associativity | remark |
 |----------|---------|---------------|--------|
 | `^` | power | right |
-| `+` <br> `-` | unary plus <br> unary minus | unary | unary operators may be chained but there mus t be space between two consecutive operators
+| `+` <br> `-` | unary plus <br> unary minus | unary | unary operators may be chained but there must be space between two consecutive unary operators
 | `//` <br> `*` <br> `/` <br> `%` | floor division <br> multiplication <br> float division <br> modulo | left |
 | `+` <br> `-` | plus <br> minus | left | left associativity ensures `a+b-c+d` is correctly parsed as `((a+b)-c)+d`
 | `!!` | bitwise not | unary | 
@@ -50,11 +50,11 @@ Here is a table of supported operators in decreasing order of precedence :
 | `&&` | bitwise and | left |
 | `~~` | bitwise xor | left |
 | `\|\|` | bitwise or | left |
-| `<` <br> `>` <br> `<=` <br> `>=` <br> `==` <br> `!=` | lesser than <br> greater than <br> l. or equal <br> g. or equal <br> equal <br> different | special, lazy | `a < b < c` means, `a < b` and `b<c`, but `b` is evaluated only once. Comparison operators can be freely mixed and matched.
+| `<` <br> `>` <br> `<=` <br> `>=` <br> `==` <br> `!=` | lesser than <br> greater than <br> l. or equal <br> g. or equal <br> equal <br> different | special, lazy | `a < b < c` means, `a < b` and `b < c`, but `b` is evaluated only once. Comparison operators can be freely mixed and matched.
 | `!` | not | unary |
 | `&` | and | right, lazy |
 | `\|` | or | right, lazy |
-| `=>` | imply | right, lazy | The logical imply operator. `a => b` is semantically equivalent to `!a or b`
+| `=>` | imply | right, lazy | The logical imply operator. `a => b` is semantically equivalent to `!a | b`
 | `=` | assignement | right associative | an assignment evaluates as the value of its right hand side |
 
 Parentheses allow total control over grouping and priorities.
@@ -64,7 +64,7 @@ Parentheses allow total control over grouping and priorities.
 A program in FeAsKo is merely a sequence of expressions to be evaluated.
 The program runs from the beginning of the file (no special entry point such as a `main` function).
 
-Expressions are simply separated by spaces, but can also, optionally, be separated by a semicolonat the end of a line.
+Expressions are simply separated by spaces, but can also, optionally, be separated by a semicolon at the end of a line.
 
 For example,
 ```
@@ -81,11 +81,11 @@ is a valid FeAsKo program, athough it's highly recommended to write it :
 
 In addition to serving as optional (and sometimes mandatory) separators, semicolons are used for comments.
 
-* A semicolons as the first character of a line is the start of a pure comment.
-* A semicolons after an expression, on the same line, is an expression separator and the start of a comment
-* A semicolons preceded only by space on its line is undefined behaviour, meaning I know what it does and want it the other way, so don't use it for now.
+* A semicolon as the first character of a line is the start of a pure comment.
+* A semicolon after an expression, on the same line, is an expression separator and the start of a comment
+* A semicolon preceded only by space on its line is undefined behaviour, meaning I know what it does and want it the other way.
 
-In a sense, semicolons as separator have the lowest priority, they separate only fully formed expressions.
+In a sense, semicolons as separators have the lowest priority, they separate only fully formed expressions.
 
 Comments are delimited as follow :
 
@@ -106,7 +106,7 @@ For example, `7-3`,
 ;the proper way to comment in the middle of an expression
 3
 ```
-are all equivalent program. Whereas this :
+are all equivalent programs. Whereas this :
 ```
 7 - ;
 3
@@ -157,7 +157,7 @@ The snippet :
 ```
 r = (if a 2*a else b)
 ```
-means sensibly the same as, say, the following JavaScript code :
+means sensibly the same as, say, the following JavaScript snippet :
 ```js
 r = a ? 2*a : b ;
 ```
@@ -181,18 +181,19 @@ When we can't be lazy about the truthy value an expression evaluates to, such as
 The value `nil` is not falsy, and you shouldn't use it.
 
 Did I mention that you shouldn't use nil values ? because you shouldn't.
-If you still want to use `nil`, as you shouldn't, 2 current reliable ways to get a `nil` value are :
+If you still want to use `nil`, as you shouldn't, two current reliable ways to get a `nil` value are :
 `{.=()}` (see the *stack introspection* subsection of section *new feature / change*)
 and
 `(new[1])[1]`   (see the *Array* subsection)
 
 The language cruelly lacks type safeguards at the moment and relies entirely on lua.
-In particular, equality test of Array and Functions is to be understood as these object being the same, on the same physical location of memory.
+
+Equality test of Array and Functions is to be understood as these object being the same, on the same physical location of memory.
 
 ### Array
 A simple array is declared with the following syntax : 
 `new [size]`
-Such an array is empty ("filled" wiht nil values, as much as a lua table can be).
+Such an array is empty ("filled" with nil values, as much as a lua table can be).
 The size of the array is checked when trying to get and set values and an error is thrown when the index is out of bound.
 
 ```
@@ -235,7 +236,7 @@ The prefix dictates the nature of the variable.
 
 * A `~` prefix denotes a global variable.
 * A sequence of dots `.` denotes a local variable. See the section *Blocks* for more details. `.` means here, in the current scope, `..` means in the parent scope, `...` in the grand-parent scope and so on.
-* A sequence of question mark `?` denotes a parameter. See the section **Functions** for more details. Very very roughly, `?` means the caller, `??` the caller's caller and so on.
+* A sequence of question marks `?` denotes a parameter. See the section **Functions** for more details. Very very roughly, `?` means the caller, `??` the caller's caller and so on.
 * Without any prefix, the nature of a variable is inferred at compile time.
 
 Variable need to appear declared before used in the code.
@@ -269,12 +270,12 @@ Comma have a higher priority than `=`and a lower priority than anything else.
 Currently, the only intended use of list is within blocks.
 In particular, list as left hand side, multiple assignements and multiple value returns are not yet supported.
 
-### Blocks
+### Blocks and Scoping
 Blocks are braces-delimited pieces of code, with two special effect :
 * Reguarding variables, they create a child scope.
-* They create a new stack on which expression are evaluated
+* They create a new stack on which expressions are evaluated
 
-At the end of a block, said block evaluates as itself, that is as an array filled with the values left on its stack.
+At the end of a block, said block evaluates to itself, that is as an array filled with the values left on its stack.
 
 Concretely, blocks can serve as **litteral arrays** :
 ```
@@ -319,23 +320,24 @@ For now, the following codes errors :
 @ = {.[3] = 5 }
 ```
 Because within itself, the block is considered an array of length zero.
-It's only once it closes while `.` has not havng been tempered with that it is interpreted as a litteral array and gets granted a non zero length.
+It's only once it closes while yielding itself that it is interpreted as a litteral array and gets granted a non zero length.
 
 ### Functions
 
 The syntax for functions is as follows `# f arg` with a parameter, and `# f ;` or `(# f)` without one.
-The semicolon or parentheses is not part of the function per see but I can't recommend them enough to avoid sticking to the next expression.
+The semicolon or parentheses are not part of the function per see but I can't recommend them enough to avoid sticking to the next expression.
 
 This pattern has lower precedence over array indexation, meaning `#a[1]` means `#(a[1])`.
 
 To declare a function, use a function pattern as a left side of an assignement.
 For example, this
 ```
+~a = 4 ;
 # .f = ~a = ~a + 1;
 # f;
 # f;
 ```
-defines a function which increments the global variable `a` and yields its value, stores it in a local variable `f`, then calls it twice.
+defines a function which increments the global variable `a` and yields its value, stores this function in a local variable `f`, then calls it twice.
 
 The logic behind the notation is loosely inspired from C pointers :
 `#a = exp` sets `a` to the value such that `#a` yields `exp`.
@@ -427,9 +429,9 @@ This not only gives a somewhat flatter way to provide functions with several par
 Oh and by the way, there is a *return* statement.
 It is what you expect.
 In likeliness of many dynamic languages such as lua, return statements are not mandatory.
-In stark contrast with them howver, lack of a return statements does not mean no returned value, as by default the body of function is evaluated as an expression.
+In stark contrast with them however, lack of a return statements does not mean no returned value, as by default the body of function is evaluated as an expression.
 
-So return statement are best used to exit the body of a function early and to return falsy.
+So return statements are best used to exit the body of a function early and to return falsy.
 
 ## New Features/Changes
 
@@ -464,7 +466,7 @@ A similar issue is the precedence between indexation and function call.
 ; @ = #range,[7] ; a desired idiomatic syntax
 @ = (#range,)[7]
 ```
-The desired syntax `@ = #range,[7]` errors because list can't be indexed, because it would require them to have higher precedence over indexation rather than lower.
+The desired syntax `@ = #range,[7]` errors because lists can't be indexed, because it would require them to have higher precedence over indexation rather than lower.
 
 I don't know if there is a purely PEG solution to this issue, but presumably, precedence climbing could solve it.
 
@@ -539,7 +541,8 @@ n = @
 ;elseif n is even, multiply it by 3, add 1 and call Syracuse
     => ( n % 2 => (n = 3 * n + 1) => # Syracuse)
 ;else half n and call Syracuse
-    => ( (n = n // 2) => # Syracuse) );
+    => ( (n = n // 2) => # Syracuse)
+);
 
 # Syracuse
 ```
@@ -558,7 +561,7 @@ Lists can be used to store a value in their first element and do some post treat
 The idiomatic equivalent of C++'s `C++` is thus `(C, C = C + 1)`.
 
 A major issue here is the order in which the expression is player.
-For now it is played for the last index first, a=out of convenience for me.
+For now it is played for the last index first, out of convenience for me.
 Moving forward, it will require thoughts and specifications.
 
 An other use case of array initializer is to make (albeit somewhat expensively) for loops (whose sized is known in advance) :
@@ -569,25 +572,42 @@ An other use case of array initializer is to make (albeit somewhat expensively) 
         new[10, .j = 2] = (
             ( .= . + i * j ), (j = j + 1)
         ),
-        ( i = i + 1
+        ( i = i + 1 )
     )
 }
 ```
 
 ### Scoping
-Although standard nowadays, scoping is a fascinating probleme and a powerful feature.
+Although standard nowadays, scoping is a fascinating problem and a powerful feature.
 At the moment, a lot of orginal features seem to work properly, such as `..a` to refer to and possibly declare a local variable in a parent context.
 
-Local variables are statically scoped, meaning functions referring to local variables refer to the variables where they have been defined rather than called. (that's the usual behaviour for popular language nowadays)
+Local variables are statically scoped, meaning functions referring to local variables refer to the variables where they have been defined rather than called. (that's the usual behaviour for popular language nowadays).
+
+The local variables a block will get are defined at compiletime. At runtime, their lifetime is the same as their block. For example :
+```
+.a = 3
+#f = a
+.a = 5
+@ = # f
+```
+will print 5. The second `.a` does not define a new local variable, it sets the only local variable `a` the current context will ever have.
+By contrast, in lua, 
+```lua
+local a = 3
+function f () return a end
+local a = 5
+print (f())
+```
+will print 3.
 
 I haven't seen any major bug related to scoping, however, many things haven't been properly tested yet.
 
 ### Blocks and functions
 Blocks and functions have great synergy together, this subsection is dedicated to it.
 
-First it's important to mention that functions (or `if`, or `else`) by default do not create a new scope.
+First it's important to mention that functions (or `if`, or `while`) by default do not create a new scope.
 New scopes are created exactly by braces delimited blocks.
-The one exception to this rule is the whole program itself, which also is its own toplevel scope, and does not require braces to materialize (that's what enables writing local variable at top level).
+The one exception to this rule is the whole program itself, which also is its own toplevel scope (that's what enables writing local variable at top level).
 
 FeAsKo lacks a dedicated syntax for anonymous functions, but the following idiom covers that need :
 ```
@@ -596,7 +616,7 @@ idendtity = {#.= ?}
 Here, `{#.= ?}` opens a block, defines a function without polluting any namespace, and yields the function as a value.
 Keep in mind that, in order to define new local variables in parent contexts, you'll then need one more dot than if you declare the function's body without a block (if you're only using existing or global variables and are not using any prefixes, it shouldn't change anything).
 
-Encapsulating a function within a block also allows to have persistent local variables, for example :
+As expected, encapsulating a function within a block allows to have persistent local variables, for example :
 ```
 # mem = {
     .nil = ();
@@ -608,8 +628,32 @@ a = # mem 3;
 @ = #a 7;   7
 @ = #a;     7
 ```
+One thing special about FeAsKo is that such encapsulation doesn't require forward declaration to have border effects :
+```
+{
+    .nil = ();
+    .val = 3 ;
+    . = # ..a = (
+    if ? == nil val else val = ?
+)}
+```
+Both context evaluation (`.=`) and parent context lookup (`..a`) provide a way to initiate effects outside of the local scope, for better or worse.
+The equivalent lua code for example would be :
+```lua
+local a --forward declaration
+(function()
+    local val = 3
+    a = function (x)
+        if x ~= nil then
+            val = x
+         end
+         return val
+    end
+    return a
+end) ()
+```
 
-It also allows to make true recursive function, by making the referrence to self unaccessible from the outside (without exploits).
+It also allows to make true recursive functions, by making the referrence to self unaccessible from the outside (without exploits).
 
 If we take a look back at our previous example :
 ```
@@ -620,22 +664,22 @@ If we take a look back at our previous example :
 and rewrite it using a block :
 ```
 .f = pow2 = {#. = if ? 2 * #. (?-1) else 1} ;
-# pow2 = 7 ; we can no longer change what the récursive function referes to
+# pow2 = 7 ; we can no longer change what the recursive function referes to
 @ = # f 5 ; 32
 ```
 we can no longer break the reference of the function to itself.
 
-The syntax `#f = { ;{...} }` allows to declare function with each call instance having their own scope and local variable, in a way more in line withe mainstream programming languages.
+The syntax `#f = { ;{...} }` allows to declare function with each call instance having their own scope and local variables, in a way more in line with mainstream programming languages.
 
 ### Stack Introspection and other exploits
 
 The behaviours described in this section are unintended, unsafe, unspecified and unreliable.
 
-They are however a lot of fun and give idea for the future.
-They have to be fixed but, part of them may become features.
+They are however a lot of fun and provide inspiration for the future.
+They have to be fixed, but part of them may become features.
 
-Stack introspection has accidentally been made possible, as a result of me being lazy when it comes to cleaning the stack (only changing the pointer without erasing the content).
-Combined with the fact that most things are expressions that are evaluated and pushed to the stack even when not necessarilly used, as well as with some bridges otherwise leading to nowhere, it offers some intersting options.
+*Stack introspection* has accidentally been made possible, as a result of me being lazy when it comes to cleaning the stack (only changing the pointer without erasing the content).
+Combined with the fact that most things are expressions that are evaluated and pushed to the stack even when not necessarilly used, along with some bridges otherwise leading to nowhere, it leads to intriguing phenomenons :
 ```
 45, 52;
 @ = a = ();         prints 45
@@ -643,13 +687,13 @@ Combined with the fact that most things are expressions that are evaluated and p
 
 72;
 @ = c = {.=()}  ;   nil. 
-;Some things, such as closing a block, forces the cleansing of the stack.
-;The opening of a block itself result in a fresh stack
+;Some things, such as closing a block, force the cleansing of the stack.
+;The opening of a block itself results in a fresh stack
 ;Supposedly, function returns also clean the stack
 ```
-It may open some hacks to code functions with multiple returns.
+It may open some hacks possibility to code functions with multiple returns.
 
-Function inspections and code injection :
+####Function inspections and code injection :
 ```
 .nil = ()
 
@@ -671,12 +715,12 @@ f[2] = nil
 @= f[2] ; nil
 @ = #f;  5
 ```
-Internally, the static body of a function is an akin to an array of its instructions with some fluff.
+Internally, the static body of a function is a akin to an array of its instructions with some fluff.
 Here, the array corresponding to `f` is :
 `{'write', 5, 'ret'}`.
 
-Because function values are only proxies of a static body with some fluff (the same static body may for example correspond to several values, possibly with differing default param value), and because of how array inspection works, one cannot inspect the static body of a function at runtime.
-Attempting to do so will yields nil or error depending on the index and size of the funciton body.
+Because function values are only proxies of a static body with some fluff (the same static body may for example correspond to several function values, possibly each with differing default param values), and because of how array inspection works, one cannot inspect the static body of a function at runtime.
+Attempting to do so will yield nil or error depending on the index and size of the function body.
 
 It is however possible to inject code into the proxy and shadow the static body, which is what is happening in the code shown above.
 
@@ -684,7 +728,7 @@ It is however possible to inject code into the proxy and shadow the static body,
 
 The main gaping holes which would absolutely need to be filled before thinking about production are
 * better framework
-    * automatic test.
+    * automatic tests.
     * better interface, command line for now. Options to only parse, only compile, run a precompiled code ... Better ways to specify input, ways to specify outputs.
     * much better error and warning reports, including type checking
 * Fixing things in the interpreter
@@ -714,7 +758,7 @@ For production, :
     * some sort of context manipulation, ways to dynamically reopen blocks.
     It opens question about variable mapping, dictionary or not, etc.
     * some sort of minimal prototypal OO ? Ideally leveraging context, functional programming and introspection.
-    * Files, manipulation
+    * Files manipulation
 
 For the very far future
 * tail recursivity
@@ -728,9 +772,10 @@ For the very far future
 
 | Criteria | Score | Explanation |
 |-|-|-|
-| **Language Completeness** | 3 | All exercices treated, if some exotically, as well as two of the proposed feature : ternary operators and bitwise operator (challenging). Numerous self imposed challenge also taken, mainly first class functions and scopes. |
-| **Code Quality and Report** | 2 | I think I barely tick every box of "meet expectations" on this one, but in a way very lacklusting and hindering, considering the size of the project, a 1 wouldn't surprise me. |
+| **Language Completeness** | 3 | All exercices treated, if some exotically, as well as two of the proposed feature : ternary operator and bitwise operators (challenging). Numerous self imposed challenge also taken, mainly first class functions and scopes. |
+| **Code Quality and Report** | 2 | I think I barely tick every boxes of "meet expectations" on this one, but in a way very lacklusting and hindering, considering the size of the project, a 1 wouldn't surprise me. |
 | **Originality and Scope** | 3 | I went above and beyond, and surely way too far for my own good. Regarding modularity, the proposed extra features were easily added as an afterthought, despite one being considered challenging. |
 
 ## References
 
+Wikipedia

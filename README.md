@@ -54,7 +54,7 @@ Here is a table of supported operators in decreasing order of precedence :
 | `!` | not | unary |
 | `&` | and | right, lazy |
 | `\|` | or | right, lazy |
-| `=>` | imply | right, lazy | The logical imply operator. `a => b` is semantically equivalent to `!a | b`
+| `=>` | imply | right, lazy | The logical imply operator. `a => b` is semantically equivalent to `!a \| b`
 | `=` | assignement | right associative | an assignment evaluates as the value of its right hand side |
 
 Parentheses allow total control over grouping and priorities.

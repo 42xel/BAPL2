@@ -1,21 +1,11 @@
-# everything is expression
-## DONE
-- make everything an expression. <br>
-it's already done, baring control structures which depend on blocks which depends on sequence
-- make subexpressions subexpressions, at least in the comment and in your head.<br>
-sub expressions are things like factor and terms, which, due to infix operator finickness, may stick to nearby sub expressions.<br>
-Let's call their result formula.
-    - add imply to the language.
-- make io a reference
-    - add input statement : @
-    - Maybe rewrite print as @ =
-- make sequences expressions, that evaluate to the last expresion (parens are friends here).
-    - remark : sequences and expression use semi-colon and comma as sort of infix operator. So they should be hanled similarly to formula (though not necessarilly formula themselves)
-- tackle blocks. Aren't they already free with litteral arrays and sequence ? Rque : `{exp}` is sort of a pointer, with a heavy syntax.
-    - "free". Whatever
-- tackle `if` and `while` : recommend using parenthesised sequences with semi-colons.
-- assignments as a left value ? (useful for default value)
+# Comments
+- Transform current `;` into `;;` (and `;;` into `;;;`)
+- Use `;` or tabulation or break line as a statement separator. Notably breaking function calls.
+    - `;` becomes inline again (kind of equivalent to C's comma)
 
+# expressions
+## DONE
+- tackle `if` and `while` : recommend using parenthesised sequences.
 - make list an expression. List are comma separated expressions, yielding several values at once. Allows several returns.
     - a big issue is `a and 3 or (4, 6)` with sort of a type error on the stack, unless `(4,6)` is cerced to `4`. I now understand better why lua does it that way. That implies they're only useable in special contexts such as assignements and returns.
     - use register ?
@@ -24,55 +14,83 @@ Let's call their result formula.
     So do use return statements.
     - list usage "restricted" to lhs, rhs, return statement ?, packing and unpacking statements.
 ## TODO
-- submit lesson 6 and start working on functions.
-- change assign such that right side is always evaluated first ?
-    - makes left assoc assign useful.
-    - code not executed in the order it's written though.
-    - should still be somewhat neutral on assignement overload.
+- Make while yield a sensible value => the falsy value that broke the loop.
+- Apply a precedence climbing algorithm to be more permissive with unary operators.
+- Use space/no space to specify priority with preffix and suffix (with warnings).
 
+# Assign Statements
+## DONE
+## TODO
+- list assignement
+- change assign such that right side is always evaluated first ?
+    - code not executed in the order it's written though, but it's probably better that way.
+    - code still compiled in the order it's written (notably for variable declaration)
+    - should still be somewhat neutral on assignement overload.
+- Revisit assignement as left value, keep default value in mind
+
+# Type system
+## DONE
+## TODO
+- Base types
+    - int
+    - float ?
+    - bool ??
+    - char ?
+    - nil
+- Blocks
+    - Arrays : just **data**
+    - Contexts : a set of **variables** with possibly a **stack**, which can be confused with **data**
+    - Function : a callable **context** with a **function body**, for now can be confused with **data** but I may wanna change that
+In addition, Blocks can be
+- **static** :
+    - **data** are in a constant size *array*
+    - constant set of **variables** stored in a constant size *array*
+    - **function body** is a non mutable array
+- **dynamic**
+    - **data** are in a variable size *vector*
+    - **variables** are in a *dictionary* of sort
+    - **function body** is a *vector*
+
+- Composed types (for statical type) ? :
+    - union types ? with union index for keys
+    - fields themselves are typed (but not necessarilly mapped to a static type) ?
+    - return value of functions are typed ?
+
+- Type annotation :
+    - using left association and prototype types :
+    ```
+    (Var = _Type) = val
+    ((Var = _Type) = default) = val
+    ```
+    exploiting the fact that left associative assignement chains are compiled left to right but executed right to left.
+
+# Variable Names
+## DONE
+## TODO
+- Starting with an lower case : dynamically typed
+- Starting with an upper case : statically typed
+    - inferred from declarations, error on things like `A = b`.
+- prefixed by an underscore : constant
+    - May have several declaration, the first executed will replace the other.
+    - In the functions code : `goto assign` and `goto val` which gets lazily replaced by `load v` once the value is set.
+
+    starting with `_` : fresh variables, its scope is punctual or last exactly one expression (that is its parent node of the AST). Useful for anonymous function without having to open a block : `#_= ()`. Useful for singletons : `a = (.._ ??= {1,2,3})[b]` : `{1,2,3}` is only ever built once (per time its context is built), but you can write it exactly where you use it instead of where it needs to live, and you don't need to give it a name.
+    - `_` itself has a somewhat special meaning : void/nil. As a value, 
+    
 # functions
 ## DONE
-- fix literal array assignement, most notably empty array assignements, which take the value previously on the stack as it shouldn't .
-- check recursion
-- Add forward declaration for globals (using promises)
-
-- think about order body, param, do you really wanna reverse ? I guess I don't. After all lhs needs to be exectued first.
-Issue is, it's harder to specify parameters processing inside the parametrization block.
-Not really an issue though, most languages are like that.
-    - If anything, you can compose functions. (TODO examples)
-    - Besides with more functional/promising shenanigans, post processing is probably possible still, something like `{ \To \Number a }` or whatever.
-- make functions : `id # = exp` : `id` is set to the function which yields `exp`. `id #` to call it. High prio. So no anonymous function ? not necessarilly. `(#= exp)` could be one syntax, remember, affectation also yields result.
-
-- erase the difference between mem and array and IntStack ? => context ?
-    - positive is stack
-    - zero is self
-    - negative is locale variable
-    - metadata / pair :
-        - parent
-        - caller
-        - association table of global name local slot.
     - block evaluation :
         - end of block / break : self (self[0])
         - return : nil
         - return exp : exp (potentially list)
         - so return statement writes in caller/parent ?
-    - make proxies for different functions ? Array/IntStack and Context ?
     - for later : dizionario ? (woudn't it be easier right away ?)
-- add variable scoping
-    - use mem and Proxy ? in blocks ?
-    - is there a distinction between global and local ? or is there just a top level
-    - syntax : `.bla` or `.\bla` for local ? <br>
-    `~bla` or `~\bla` for global/toplevel ? <br>
-    `bla` to infer ?
-- anonymous functions and expression functions ? For now, one can only call a function stored (in a variable or an array).
-    - The compiler is completely ready for it already, you jsut need the parser.
-    - You probably want some dynamic type check to not call non functions (that's useful even before considering anonymous functions).
-- `?` for curryfication ?
 ## TODO
-- syntax for parameters ? ideally, parameters are "just" codeblock concatenation with context fusion. `block1 \ block2`.
+- Syntax : drop the `#`
+- function as proxies for their calls set to the defaut parameters environment ?
+
+- [old] Syntax for parameters ? ideally, parameters are "just" codeblock concatenation with context fusion. `block1 \ block2`.
     - so make that codeblock fusion with context fusion.
-    - what if `exp` in `id # = exp` is not a block, just an expression ?
-    - work with non function and non block as well.
     - `block_param \ block_function` to bind some named values in block_function from block_param. Allows rebinding, and some dynamical scoping of sort ?
     - mutably ? use `##` to have coroutines or be able to copy function ?
     - `block_param \ block_function #` to call it (parsed as `(block_param \ block_function) #`)
@@ -84,7 +102,7 @@ Not really an issue though, most languages are like that.
     ```
 
 - add `...̀  which represent whatever is on the stack and use it to pass parameters, explicitely while chaining blocks, implicitely when using parentheses for functions calls.
-- make unpacking syntax ? 
+- make unpacking syntax ? or list assignement ?
     - `.{a, b, c} = {3, 4, 5}` ?
     - With optimization `{..a=3,  ..b = 4, ..c = 5}` ?
     - Allows to use block functions, which have scoping.
@@ -94,6 +112,17 @@ Not really an issue though, most languages are like that.
 - flatten the code and use only gotos ? there are pros and con, but mostly no.
     - With flatten, I'd have to handle the callstack entirely myself. That's something I wat I guess, but also, no.
 - think about tail recursivity.
+
+# Memory management
+## DONE
+## TODO
+- Ownership system like in Rust.
+- when a context is closed without being assigned, it gets cleared, after its content
+- when a variable is changed : clear previous value.
+- can only write things like `a = B` if `a` is owned, directly or indirectly, by `B`'s owner.
+- ownership transfer ? not absolutely needed.
+- borrow ? `a _= B` meaning (see function) set `a` to the function which retrieve B, taking no argument and applying automatically.
+
 
 # Object oriented programming
 ## DONE
@@ -112,9 +141,6 @@ Not really an issue though, most languages are like that.
 
 # going further
 ## DONE
-- What of control structure blocks (if, while) ? SHould we recommend writing them with parentheses (and semicolons) rather than brackets ? It doesn't change much tbh. If you're crazy enough need/want to to `a = if cond stat`, you should know what you need (paren block or unpacking). If you you just want regular if and while with scoping, nothing wrong with using brackets and not using the result. 
-- context/clocks
-    - `{ . = 5, 7}` or maybe `{ . ..= 5, 7}` for a block to set its own value, as a way to return. `.$ \ exp` to set a callback function. `.$ \ (.= exp)` or maybe even `.$ \,= exp` to set a return value
 ## TODO
 - Promises
     - similar to function blocks but with substitution instead of binding, and callbacks instead of concatenation ?
@@ -140,6 +166,15 @@ Not really an issue though, most languages are like that.
 - tail recursivity
 - consecutive clean
     - more generally, the stack is filled with garbage and I'd be very surprised to not have let any way to access it. Both are issues to look into
+
+# Description
+## DONE
+## TODO
+- Talk about new goal : read as written. No (necessity for) forward declaration, no necessity for breaking the flow of a current logic chained ran concurrently to another one.
+- make a first example with say a hash table inside a loop.
+    - with other languages you should put it beforehand, but then it hurts readibility. You can put it a header file, but it does not change much. With dynamic languages, you can actually put it afterward, but it's still the same deal
+    - with FeAsKo, you can write it where you use it in the code and still have it defined where you need it in the memory. Not only that, but for a one time value defined using static constant, the amortized cost is not even that of a reference call, but that of a hard writen constant.
+- Think about the name of the language. Could be something about telling stories, Bard is already taken, could be menestrel.
 
 # Misc.
 ## DONE

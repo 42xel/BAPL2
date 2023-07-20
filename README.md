@@ -1,5 +1,5 @@
 # Final Project Report: FeAsKo
- 
+
 ## Preamble
 The code source is in the folder Project.
 All the files there baring lpeg.so and pt.lua have been entirely written by myself.

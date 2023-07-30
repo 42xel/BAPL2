@@ -63,6 +63,7 @@ In addition, Blocks can be
     ((Var = _Type) = default) = val
     ```
     exploiting the fact that left associative assignement chains are compiled left to right but executed right to left.
+    - doing something normal like using `:`.
 
 # Variable Names
 ## DONE
@@ -76,7 +77,32 @@ In addition, Blocks can be
 
     starting with `_` : fresh variables, its scope is punctual or last exactly one expression (that is its parent node of the AST). Useful for anonymous function without having to open a block : `#_= ()`. Useful for singletons : `a = (.._ ??= {1,2,3})[b]` : `{1,2,3}` is only ever built once (per time its context is built), but you can write it exactly where you use it instead of where it needs to live, and you don't need to give it a name.
     - `_` itself has a somewhat special meaning : void/nil. As a value, 
-    
+- Ponder static/dynamic, stack/heap.
+- Name mapping, inheritance :
+    - Names are mapped to some arithmetic value `n` and types to some arithmetic value `t` such that some function `f` maps `(t,n)` to preferably unique prefeably contiguous named fields of the type.
+    - If Tb extends Ta, that is if Tb can be seen as a Ta, we should have `f(tb,n) = f(ta,n)` for all fields of Ta appearing in Tb. (differentiates copy and expands, with copy not requiring these constraints).
+        - more general notion of "is related" ? on a type basis or on a field basis ? Use Traits ? Non instantiated Types only meant to be expanded who don't care about having contiguous indices ?
+    - Idea : `f(t,n) = 0` might mean `N` is not a field of `T`.
+    - Idea : `n : {prime : smolInt, mod : smolInt}` and `t : longInt`, and `f(t,n) = t % n.prime == n.mod ? n.mod : 0`.
+        - t is inferred from contained fields and chinese lemma.
+        - if t becomes too big, switch `f(t,.)` to a perfect hashmap.
+        - first solve the choice for all `n.mod`. You need it anyway (even for hashmap), you need only it for static.
+        - related names (eg. names which may appear both appear in the same type) may not use the same prime.
+        - unrelated names may use the same prime but ought to use different mod.
+- do same for suffixes (`MyType1`, `MyType_a`, ...) ?
+
+# staticism / dynamism
+## DONE
+## TODO
+- dynamic staticism.
+    - idempotent binary rewriting :
+        - the binary is eventually stable.
+        - the rewriting never changes the semantic.
+    - used for compilation ?
+- arbitrary binary introspection and rewriting.
+    - limited to function code written on the heap ?
+    - used for compilation ?
+
 # functions
 ## DONE
     - block evaluation :

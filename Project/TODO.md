@@ -102,6 +102,35 @@ In addition, Blocks can be
 - arbitrary binary introspection and rewriting.
     - limited to function code written on the heap ?
     - used for compilation ?
+- Safe, statical, scoped transmutations. In-place metadata : possibility to leave some room on a struct to be borrowed as anything small enough.
+    - it's like a dyn traits object, except instead of a vtable known at compile time, the trait itself can be first class, and dynamic. Essentially, it allows to change the type behaviour of a given variable at runtime, in a manner still controlled at compile time, without shadowing or enum or combining several datastuctue, and their potential cost of copy and indirection.
+    ```rust
+    #[derive(Default)]
+    struct Sboobs  {
+        foo: (),
+        bar: InPlaceMeta<const Size = 29>,    //some space for in place metadata
+    }
+    let mut s : Sboobs = Default::default();
+    let as_i64 : MetaLifetime<i16> = s.bar.init(47);  //l effectively creates a mutable reference to s.bar. 47 is written in the 16 bits of s.bar
+    println!("{}, s.bar.get(&as_i64)");   //you have to specify the lifetime, to help the compiler (and programmer) with types and lifetimes.
+    s.bar.set(&mut as_i64, 57);
+
+    // let l2 : MetaLifetime<i16> = s.bar.init(54);  //would error as s.bar is effectively borrowed mutably
+    // you can however borrow the inner value, which effectively borrows the lifetime this time
+    let alias = s.bar.borrow(&as_i64);
+    let alias = s.bar.borrow_mut(&mut as_i64);
+    drop(alias);
+
+    //you should be able to call all the method directly on the lifetime as well, since it is doing the heavy lifting, but it's less logical.
+    // With some compiler modifications, the following syntax would be sweet :
+    s.bar<'as_i64> = 49;
+
+    drop(a);
+    // when a is dropped, control of s.bar is released
+    let b : &mut [bool; 2] = s.bar.init([true, false]);
+
+    b.leak();  // consumes b instead of dropping it. a.bar is released, but the data is left untouched, b is moved rather than dropped, for future, presumably unsafe uses. It is a leak, as no valid variable points to data which haven't been properly dropped.
+    ```
 
 # functions
 ## DONE
@@ -164,6 +193,7 @@ In addition, Blocks can be
     - jumping out of functions ? questions about label scoping. Most these questions will probably already be answered by variable scoping then, but there's still stack handling todo.
 - leverage functional programming, use `\` to instanciate, access method, etc.
 - strings, named fields ? static and dynamic ? For now, static should be manageable, through substitution.
+
 
 # going further
 ## DONE

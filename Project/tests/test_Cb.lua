@@ -5,7 +5,7 @@ local lpeg = require"lpeg"
 local utils = require"utils"
 
 --------------------------------------------------------------------------------
---baic principles of (named) captures scoping
+--basic principles of (named) captures scoping
 --[[beware grouping when capturing
 
 patt1 = lpeg.Cc"Hello"

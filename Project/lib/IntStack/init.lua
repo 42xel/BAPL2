@@ -26,7 +26,7 @@ end
 function IntStack:push(...)   --pushes one or several values and returns self, for chaining
     local n, s = select('#', ...), #self
     self.len = #self + n
-    --print("IntStack.push() move", n, 1 + s, self, ...)
+    --io.stderr:write("IntStack.push() move", n, 1 + s, self, ...)
     table.move({...}, 1, n, 1 + s, self)
     return self
 end

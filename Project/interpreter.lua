@@ -129,7 +129,7 @@ function Run:new(code, run)
                 --shouldn't happen, if it does, it most likely is an error in the compiler
                 if not stackCaller.validTypes[type(...)] then 
                     ---@TODO : make it only number/pointers when rewriting the VM.
-                    error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end
+                    error(("trying to push a value which is neither a number nor a string nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end
                     trace:push(stackCaller.hpos .. '  <>- ' .. concat({...}))
                     --trace:push(tostring(stackCaller):gsub('[\n\t]', ' '))
                     rawwrite(stackCaller, ...)
@@ -165,17 +165,18 @@ function Run:new(code, run)
         ---I don't know, with Ultra editing, contiguous one liner code repetition is painless and harmless, and meta programming doesn't help when using lua-language-server
         run.switch = {
             --basic
-            push  = function() pc = pc+1 ; push(vctx.stack, code[pc]) end,
-            write = function() pc = pc+1 ; write(vctx.stack, code[pc]) end,
+            push  = function() pc = pc + 1 ; push(vctx.stack, code[pc]) end,
+            write = function() pc = pc + 1 ; write(vctx.stack, code[pc]) end,
             pop   = function() pop(vctx.stack) end,
             up    = function() vctx.stack.hpos = vctx.stack.hpos + 1 end,  --moves the head one step up the stack
             mv    = function() pc = pc + 1 ; vctx.stack.hpos = vctx.stack.hpos - code[pc] end, --moves the head a static number of steps down the stack
             mv_d  = function() vctx.stack.hpos = vctx.stack.hpos - vctx.stack.head end,              --moves the head a dynamic number of steps down the stack
             dup   = function() push(vctx.stack, peek(vctx.stack)) end,
-            print = function() print("@ = ", peek(vctx.stack)) end,
-            read  = function() print"@ " ; write(vctx.stack, io.stdin:read('n')) end,
+            print = function() if type (vctx.stack:peek()) == 'string' then io.write(vctx.stack:peek()) else io.write("@ = ", peek(vctx.stack)) end end,
+            -- Yeah that's totally clean...
+            read  = function() io.stderr:write"@ " ; local r = io.stdin:read('l'); write(vctx.stack, tonumber(r) or r) end,
             --control structures
-            jmp     = function() pc = pc + 1 ;                          pc = pc + code[pc]     end,
+            jmp     = function() pc = pc + 1 ;                          pc = pc + code[pc]      end,
             jmp_Z   = function() pc = pc + 1 ; if peek(vctx.stack) == 0 then pc = pc + code[pc] end end,
             jmpop_Z = function() pc = pc + 1 ; if pop (vctx.stack) == 0 then pc = pc + code[pc] end end,
             jmp_NZ  = function() pc = pc + 1 ; if peek(vctx.stack) ~= 0 then pc = pc + code[pc] end end,
@@ -189,11 +190,11 @@ function Run:new(code, run)
             mod = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] % pop(vctx.stack)) end,
             pow = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] ^ pop(vctx.stack)) end,
 
-            BWand=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] & pop(vctx.stack)) end,
-            BWxor=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] ~ pop(vctx.stack)) end,
-            BWor =function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] | pop(vctx.stack)) end,
-            rshft=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] >>pop(vctx.stack)) end,
-            lshft=function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] <<pop(vctx.stack)) end,
+            BWand = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] & pop(vctx.stack)) end,
+            BWxor = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] ~ pop(vctx.stack)) end,
+            BWor  = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] | pop(vctx.stack)) end,
+            rshft = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] >>pop(vctx.stack)) end,
+            lshft = function() write(vctx.stack, vctx.stack[vctx.stack.hpos - 1] <<pop(vctx.stack)) end,
 
             --unary operations
             plus = function () end,
@@ -243,13 +244,13 @@ function Run:new(code, run)
             end,
             clean = function () vctx.stack:clean() end,
             load  = function()
-                pc = pc+1
+                pc = pc + 1
                 local ctx = loadCtx(vctx, code[pc], gmem)
                 pc = pc + 1
                 write(vctx.stack, ctx[code[pc]])
             end,
             store = function()
-                pc = pc+1
+                pc = pc + 1
                 local ctx = loadCtx(vctx, code[pc], gmem)
                 pc = pc + 1
                 ctx[code[pc]] = peek(vctx.stack)
@@ -271,7 +272,7 @@ function Run:new(code, run)
                     "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
                     .. "\t ipos:\t" .. vctx.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
-                    --print("toplevel")
+                    --io.stderr:write("toplevel")
                     return true
                 end
                 --litteral array declaration : we set the size at the end.
@@ -319,13 +320,13 @@ function Run:new(code, run)
                     "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
                     .. "\t ipos:\t" .. vctx.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
-                    --print("toplevel")
+                    --io.stderr:write("toplevel")
                     return true
                 end
 
                 local s = vctx.vtcxParent.stack.hpos
                 if s == 0 then
-                    print("ret: warning head position was zero")
+                    io.stderr:write("ret: warning head position was zero")
                     s = 1
                 end
                 vctx.vtcxParent.stack.hpos = s - 1
@@ -338,7 +339,7 @@ function Run:new(code, run)
             end,
         }
         setmetatable(run.switch, {__index = function()
-                print(trace and trace:unpack())
+                io.stderr:write(trace and trace:unpack())
                 --should not be happening, if it does, there most likely is an error in the compiler.
                 ---@TODO output in stderr. for now I use stdout for readibility, because apparently I have no control on how stdout and stderr will mix on the terminal output.
                 io.stdout:write("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc) .. " of code:\t" .. pt(code) .. "\n")   --lpeg match catches errors I think
@@ -346,8 +347,8 @@ function Run:new(code, run)
             end,
             __call = trace and function (self)
                 pc = pc + 1
-                if _INTERPRETER_DEBUG then  print(trace:unpack()) end ---@TODO make better
-                trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
+                if _INTERPRETER_DEBUG then  io.stderr:write(trace:unpack()) end ---@TODO make better
+                trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}
                 return self[code[pc]]()
             end or function (self)
                 pc = pc + 1
@@ -363,6 +364,13 @@ function Run:run()
     local r = self.vctx.stack
     return r
 end
+
+-- We support string manipulations by overloading lua strings.
+---@TODO: dynamic dispatch feels really bad, a type system and actual comilation would be much better. Aternatively, removing polymorphism... NO! I love polymorphism, I WANT polymorphism.
+local string_metatable = getmetatable("")
+function string_metatable.__mul(a, b) return a .. b end
+function string_metatable.__pow(a, b) return a:rep(b)  end
+
 --------------------------------------------------------------------------------
 
 return Run:new()

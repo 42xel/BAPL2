@@ -12,38 +12,45 @@ _README = nil
 _INTERPRETER_DEBUG = false
 --_INTERPRETER_DEBUG = true
 --------------------------------------------------------------------------------
-package.path = "./lib/?.lua;" .. "./lib/?/init.lua;" .. package.path
+-- -- Figure out the launching directory
+local directory = arg[0]:match(".*[/\\]") or ""
+package.path = directory .. "lib/?.lua;" .. directory .. "lib/?/init.lua;" .. package.path
+if directory ~= "" then
+    package.path = directory .. "?.lua;" .. package.path
+end
+package.cpath = directory .. "lib/?.so;" .. package.cpath
 
 local pt = require "pt".pt
 --local utils = require"utils"
 --_DEBOGUE = utils.debogue
 
-local parse = require"parser"
-local compile = require"compiler"
-local run = require"interpreter"
+local parse = require "parser"
+local compile = require "compiler"
+local run = require "interpreter"
 
 --_DEBOGUE.trace(pt(lpeg))
 --------------------------------------------------------------------------------
 ---@TODO : add an interface of sort
+---@TODO : add a repl ?
 
 --------------------------------------------------------------------------------
 local input = assert(assert(
     io.open(assert(arg[1], arg[1] and 'r' or "\nUsage:\nlua main.lua myScript.fak"))
 ):read'a')
-print(input)
+io.stderr:write(input)
 
 local ast = parse (input)
-print(pt(ast))
---print("MaxOffset", _DEBOGUE.MaxOffset)
-print()
+io.stderr:write(pt(ast))
+--io.stderr:write("MaxOffset", _DEBOGUE.MaxOffset)
+io.stderr:write()
 
 local code = compile((ast))
-print(pt(code))
-print()
+io.stderr:write(pt(code))
+io.stderr:write()
 
-print(input)
-print("--- run ---")
+io.stderr:write(input)
+io.stderr:write("--- run ---\n")
 local r = run(code)
-print("result")
-print(r)
+io.stderr:write("result")
+io.stderr:write(r)
 --------------------------------------------------------------------------------

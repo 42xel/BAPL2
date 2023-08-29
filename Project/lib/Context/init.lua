@@ -20,6 +20,7 @@ local Context = {__name = "Context",
     validTypes = {
         number = true,
         table = true,
+        string = true,
         ["nil"] = true,
     }
 }
@@ -31,7 +32,7 @@ Context.ihpos = 1
 
 ---@TODO : clean that thing up
 --the toplevel parent
-Context.parent = {} -- {write = function (_, v) print(v) end, up = print}
+Context.parent = {} -- {write = function (_, v) io.stderr:write(v) end, up = io.stderr:write}
 
 --Context.caller = nil
 Context[0] = Context
@@ -138,7 +139,7 @@ end
 function Context:write(v)  --write a single value at the top of the Stack and returns the stack.
     ---@TODO check whether good/necessary or whether it'd be better to error.
     if self.hpos == 0 then
-        print("Context:write(): warning head position was zero")
+        io.stderr:write("Context:write(): warning head position was zero")
         self.hpos = 1;
     end
     self.head = v
@@ -184,7 +185,7 @@ function Context:__tostring()
         return Array.__tostring(self)
     end
     local r = Context.__name .. ": {\n"
-    --print('Context.__tostring', self.hpos or 1, rawlen(self), self.arrlen or 0)
+    --io.stderr:write('Context.__tostring', self.hpos or 1, rawlen(self), self.arrlen or 0)
     for i = math.max(self.hpos or 1, rawlen(self), self.arrlen or 0), 1, -1 do
         ---@TODO show variables ? (i < 0)
         r = r .. (i == self.hpos and "->" or "") .. "\t" .. tostring (self[i]) .. "\n"

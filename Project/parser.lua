@@ -8,6 +8,7 @@ local Stack = require"Stack"
 local Node = require"ASTNode"
 
 local nodeNum = Node.nodeNum
+local nodeStr = Node.nodeStr
 local nodeBinop = Node.nodeBinop
 local nodeFoldBinop = Node.nodeFoldBinop
 local nodeFoldBinopSuffix = Node.nodeFoldBinopSuffix
@@ -70,7 +71,7 @@ local blockComment = P";{" * (Cmt(C((P"{")^0) * Cc"", function (code, i, bracket
     return code:match(("}"):rep(1 + #brackets) .. '()', i)
  end)
     + err"Block comment missing end bracket(s)")
-local lineComment = ";" * (P(1) - newLine)^0 -- * print
+local lineComment = ";" * (P(1) - newLine)^0
 local comment = blockComment + lineComment
 
 local ws = newLine * comment^-1 + locale.space    --we might need ws or ws^1 in some places
@@ -121,11 +122,20 @@ local alpha = locale.alpha
 --local alnum = alpha+digit
 local alnum = locale.alnum
 
+
+---strings
+-- for now, only '' or "", no escape (use concatenation if needed I guess).
+-- Perl nonsense migh be interesting but sus.
+-- indexing desired.
+
+local dquote = S'"'
+local dquoteString = dquote * C((P(1) - dquote)^0) * dquote / nodeStr
+
 --spaces
 ---@TODO : store lineCount and lastLineStart inside or around the AST for reporting and syntax highlight
 ---@TODO : use doo/doone/doon't for blocks and comment block ? Answer : no, it's moronic and conflicts violently with getting rid of keywords, unless you go full functional curry, which I won't.
 
----@TODO alleviate the need for reserved words (still have special words)
+---@TODO alleviate the need for reserved words (still have special words). Not really. The best way to alleviate the need for special words is lisp, and this language ain't no LISP. Keep in mind ofr the next one.
 local Rw_ = setmetatable({
     "break",
     "return",
@@ -223,6 +233,7 @@ _READ_INTRICATEPATTERNS = nil
 exp_.prefixed_ = V'fun_' + V'if_' + V'while_' + V'break_' + V'return_'
 
 local function infixOpCapture(opPatt, abovePattern)
+-- @TODO replace with the much more savory accumulator pattern %, and simplify nonsense away from nodeFoldBinop.
     return Cf(abovePattern * (opPatt * abovePattern / nodeFoldBinopSuffix)^0, nodeFoldBinop)
 end
 local function infixOpCaptureRightAssoc(opPatt, selfPattern, abovePattern, tag)  --set self to above to have a non-asociative binary op.
@@ -239,6 +250,7 @@ end
 --primary, aka first stage in formulas
 exp_.primary_ =
     numeral * V'ws_'
+    + dquoteString * V'ws_'
     + var * V'ws_'
     + V'group_'
     + V'array_'     --to be used along lazy logical operator.
@@ -251,7 +263,7 @@ exp_.primary_ =
     --+ V'ref_'      --should'nt be needed here
 exp_:push(V'primary_')
 
---using numbered pattern for flexibility concerning priorities, and named pattern for easier use elsqwhere.
+--using numbered pattern for flexibility concerning priorities, and named pattern for easier use elsewhere.
 --declaring the named pattern first to have more explicit error message from PEG (typically left recursivity)
 exp_.indexed_ = Cf((var * V'ws_' + V'group_') * paren_("[", V'seqs_',"]", "Array index")^0, nodeIndexed)
 exp_:push(V'indexed_' + V(#exp_))
@@ -273,6 +285,7 @@ The logic is the same as pointers syntax in C/C++ : a is assigned to the value s
 
 TODO anonymous function (and assignements statements) : `#= body` `#,param = body`
 For now, the workaround `{#.=body}` should work, with caution given to the difference in scoping the block implies.
+Another thing which should work without scoping issues is `#(##_=body)`, or even just `(#_=body)`.
 
 T_(C"#")^1 allows to fold but is itself never captured
 
@@ -327,7 +340,7 @@ exp_.context_ = paren_("{", V'seqs_', "}", "block/litteral Array")
 --    / Node{tag = 'new', 'content'} -- [0] = 'values'}
 
 local _errNoSC = err"BEWARE, you cannot separate condition, then and else with semi-colon"
---BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them clarify where the whole if stops though.
+--BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them to clarify where the whole if stops though.
 exp_.if_ = Rw_"if" * V'assign__' * (T_";" * _errNoSC + 0) * V'assign__' *
     ((T_";" * Rw_"else" * _errNoSC + Rw_"else") * V'assign__' * I'else')^-1 /
     Node{tag = 'if', "cond", "then", "else"}
@@ -396,10 +409,8 @@ TODO how does it relates to function loading ?
         ,
         function (_, _, lhs)
             if _validLhs[lhs.tag] then
-                --print("bla3", pt(lhs))
                 return true, lhs
             else
-                --print("bla4", lhs.tag, pt(lhs))
                 return false, "Invalid Left hand side for assignement"  ---@TODO see whether and where it is possible to throw this error/warning
             end
         end
@@ -422,12 +433,10 @@ exp_.seqs1_ = seq(V(#exp_ - 1), comment_, true)
 exp_ = P(exp_)
 
 --------------------------------------------------------------------------------
-local successParsing = print
 
 local filePatt =
     ws_ * (exp_)-- + stats_)
      * (-P(1) + err"file: syntax error.") --TODO better error msg
-    -- * (-P(successParsing) / 0)
 ---@return AST
 local function parse (input)
     local r = filePatt:match(input)

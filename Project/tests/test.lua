@@ -15,15 +15,15 @@ do
 end
 
 for _, f in ipairs(fileList) do
-    print("  -------------------------------------")
-    print("testing:", f[2])
-    --print(table.concat(f, '/'))
+    io.stderr.write("  -------------------------------------")
+    io.stderr.write("testing:", f[2])
+    --io.stderr.write(table.concat(f, '/'))
     local result = assert(io.popen(([[lua main.lua %s]]):format(table.concat(f, '/')), "r"))
-    ---@TODO (once deterministic printing is implemented): pipe stderr and stdout in 2 different tmporary files, and compare them to some expected result, with interactive prompt and options.
+    ---@TODO (once deterministic printing is implemented): pipe stderr and stdout in 2 different temporary files, and compare them to some expected result, with interactive prompt and options.
     for l in result:lines() do
-        print(l)
+        io.stderr.write(l)
     end
-    print("tested:", f[2])
-    print("  -------------------------------------")
+    io.stderr.write("tested:", f[2])
+    io.stderr.write("  -------------------------------------")
     io.read()
 end

@@ -1,4 +1,4 @@
-# Final Project Report: FeAsKo
+# Final Project Report: deFAKto
 
 ## Preamble
 The code source is in the folder Project.
@@ -34,7 +34,7 @@ example of numbers :
 
 ### Basic Expressions
 
-In FeAsKo, most things are expressions.
+In deFAKto, most things are expressions.
 The basic expressions (arithmetico-logical expressions) are formed by aggregating patterns of decreasing precedence corresponding each to operators and operations.
 
 Here is a table of supported operators in decreasing order of precedence :
@@ -61,7 +61,7 @@ Parentheses allow total control over grouping and priorities.
 
 ### Sequences
 
-A program in FeAsKo is merely a sequence of expressions to be evaluated.
+A program in deFAKto is merely a sequence of expressions to be evaluated.
 The program runs from the beginning of the file (no special entry point such as a `main` function).
 
 Expressions are simply separated by spaces, but can also, optionally, be separated by a semicolon at the end of a line.
@@ -70,7 +70,7 @@ For example,
 ```
 0xAB 5-7 34 << 3
 ```
-is a valid FeAsKo program, athough it's highly recommended to write it :
+is a valid deFAKto program, athough it's highly recommended to write it :
 ```
 0xAB ;
 5-7 ;
@@ -152,7 +152,7 @@ else
 
 You'll observe that the "then" and "else" bodies are expressions.
 They are not formula computed in vain, they are actually used to evaluate the if statement, which is itself an expression.
-In fact an `if else` statement in FeAsKo is exactly a ternary operator.
+In fact an `if else` statement in deFAKto is exactly a ternary operator.
 The snippet :
 ```
 r = (if a 2*a else b)
@@ -167,7 +167,7 @@ The syntax for `while` follows the same spirit :
 `while cond exp` except its evaluation is unspecified (yet).
 
 ### Types
-FeAsKo is dynamically and very weakly typed.
+deFAKto is dynamically and very weakly typed.
 
 The four current types are :
 
@@ -384,7 +384,7 @@ In the above examples, `f` and `pow2` can already be used in the rhs of an assig
 
 For crossed recursion, the program (the compiler) just needs to know the variable names exist at the moment of using them in the declaration of the functions.
 
-The same way one can use pointers of pointers in C/C++, there are function patterns of function patterns in FeAsKo, denoted :
+The same way one can use pointers of pointers in C/C++, there are function patterns of function patterns in deFAKto, denoted :
 ```
 ## f p1 p2
 ```
@@ -453,7 +453,7 @@ local function minus(a) return 1 + ~ a end
 ```
 is interpreted just fine.
 
-In FeAsKo, for now at least, we have to write :
+In deFAKto, for now at least, we have to write :
 ```
 # .minus = 1 + (!! ?)
 ```
@@ -609,7 +609,7 @@ First it's important to mention that functions (or `if`, or `while`) by default 
 New scopes are created exactly by braces delimited blocks.
 The one exception to this rule is the whole program itself, which also is its own toplevel scope (that's what enables writing local variable at top level).
 
-FeAsKo lacks a dedicated syntax for anonymous functions, but the following idiom covers that need :
+deFAKto lacks a dedicated syntax for anonymous functions, but the following idiom covers that need :
 ```
 idendtity = {#.= ?}
 ```
@@ -628,7 +628,7 @@ a = # mem 3;
 @ = #a 7;   7
 @ = #a;     7
 ```
-One thing special about FeAsKo is that such encapsulation doesn't require forward declaration to have border effects :
+One thing special about deFAKto is that such encapsulation doesn't require forward declaration to have border effects :
 ```
 {
     .nil = ();

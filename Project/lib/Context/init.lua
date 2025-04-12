@@ -20,6 +20,7 @@ local Context = {__name = "Context",
     validTypes = {
         number = true,
         table = true,
+        string = true,
         ["nil"] = true,
     }
 }

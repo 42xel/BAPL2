@@ -19,8 +19,9 @@ end
 
 --------------------------------------------------------------------------------
 --lpeg fields
----@TODO : cleaner, use inheritance or something.
 
+--- variants of lpeg.Cargs, capturing a range of arguments, 1,i or i,j.
+--- lpeg.Cargs(i, j) expands to (something equivalent to) `lpeg.Carg(i) * lpeg.Carg(i+1) * ... * lpeg.Carg(j-1) * lpeg.Carg(j)`
 lpeg.Cargs = setmetatable ({
 },{
     __call = function(self, i, j)
@@ -28,10 +29,10 @@ lpeg.Cargs = setmetatable ({
             return self[1][i]
         else
             return self[i][j]
---            return lpeg.Cc(i) * self[j] / select      --neat alternative to only store 1 -> i ranges
         end
     end,
     __index = function(self, i)
+        -- @TODO the metatable should only be created once (with the table containing `i`).
         self[i] = setmetatable({}, {
             __index = function(self, j)
                 if j < i then
@@ -83,7 +84,7 @@ local missing = lpeg.P''
 lpeg.Switch = setmetatable({
     default = default,
     __call = function(self, case, ...)
-        return self[case]:match(case,1, ...)
+        return self[case]:match(case, 1, ...)
     end,
     __index = function(self, key)
         return self[default] or missing

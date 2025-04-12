@@ -129,7 +129,7 @@ function Run:new(code, run)
                 --shouldn't happen, if it does, it most likely is an error in the compiler
                 if not stackCaller.validTypes[type(...)] then 
                     ---@TODO : make it only number/pointers when rewriting the VM.
-                    error(("trying to push a value which is neither a number nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end
+                    error(("trying to push a value which is neither a number nor a string nor an Array:\t%s of type:\t%s"):format(..., type(...)), 2) end
                     trace:push(stackCaller.hpos .. '  <>- ' .. concat({...}))
                     --trace:push(tostring(stackCaller):gsub('[\n\t]', ' '))
                     rawwrite(stackCaller, ...)

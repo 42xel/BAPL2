@@ -14,9 +14,9 @@ look at examples
 
     Node()  -- generates an empty node.
     Node{tag = 'tag', field1, field2}   -- generates based on a template
-    Node(predicate, number, {args1}, {args2})   -- uses a predicate on the numberth argument to chose another node function
-    Node(number)    -- when 0 < n : chooses the numberth argument
-    Node(number, args)  -- generate a function with the numberth argument as the starting node (as opposed to creating a new one)
+    Node(predicate, number, {args1}, {args2})   -- uses a predicate on the number-th argument to chose another node function
+    Node(number)    -- when 0 < n : chooses the number-th argument
+    Node(number, args)  -- generate a function with the number-th argument as the starting node (as opposed to creating a new one)
 ***
 #### TODO
 - (after OO) incorporate lineCount. Do you really need them ?
@@ -80,6 +80,7 @@ function Node.isEmpty(self)
 end
 
 Node.nodeNum = Node{tag = 'number', 'val'}
+Node.nodeStr = Node{tag = 'string', 'val'}
 
 Node.nodeBinop = Node{tag = 'binop', 'exp1', 'op', 'exp2'}
 ---@TODO see whether isNodeEmpty is really necssary/helpful there.

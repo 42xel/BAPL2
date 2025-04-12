@@ -12,19 +12,26 @@ _README = nil
 _INTERPRETER_DEBUG = false
 --_INTERPRETER_DEBUG = true
 --------------------------------------------------------------------------------
-package.path = "./lib/?.lua;" .. "./lib/?/init.lua;" .. package.path
+-- -- Figure out the launching directory
+local directory = arg[0]:match(".*[/\\]") or ""
+package.path = directory .. "lib/?.lua;" .. directory .. "lib/?/init.lua;" .. package.path
+if directory ~= "" then
+    package.path = directory .. "?.lua;" .. package.path
+end
+package.cpath = directory .. "lib/?.so;" .. package.cpath
 
 local pt = require "pt".pt
 --local utils = require"utils"
 --_DEBOGUE = utils.debogue
 
-local parse = require"parser"
-local compile = require"compiler"
-local run = require"interpreter"
+local parse = require "parser"
+local compile = require "compiler"
+local run = require "interpreter"
 
 --_DEBOGUE.trace(pt(lpeg))
 --------------------------------------------------------------------------------
 ---@TODO : add an interface of sort
+---@TODO : add a repl ?
 
 --------------------------------------------------------------------------------
 local input = assert(assert(

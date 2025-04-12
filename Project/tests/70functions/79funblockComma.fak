@@ -1,2 +1,2 @@
 # range 10 = new [?, (? = ? + 1) ] = (? = ? - 1)
-@ = (#range,)[7]
+@ = #range,[7] ; means (#range)[7], as opposed to #(range[7])

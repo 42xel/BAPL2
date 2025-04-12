@@ -50,7 +50,7 @@ Here is a table of supported operators in decreasing order of precedence :
 | `&&` | bitwise and | left |
 | `~~` | bitwise xor | left |
 | `\|\|` | bitwise or | left |
-| `<` <br> `>` <br> `<=` <br> `>=` <br> `==` <br> `!=` | lesser than <br> greater than <br> l. or equal <br> g. or equal <br> equal <br> different | special, lazy | `a < b < c` means, `a < b` and `b < c`, but `b` is evaluated only once. Comparison operators can be freely mixed and matched.
+| `<` <br> `>` <br> `<=` <br> `>=` <br> `==` <br> `!=` | lesser than <br> greater than <br> l. or equal <br> g. or equal <br> equal <br> different | special, left, lazy | `a < b < c` means, `a < b` and `b < c`, but `b` is evaluated only once. Comparison operators can be freely mixed and matched.
 | `!` | not | unary |
 | `&` | and | right, lazy |
 | `\|` | or | right, lazy |
@@ -371,7 +371,7 @@ Indeed, in the following code,
 # pow2 = if ? 2 * #pow2 (?-1) else 1 ;
 @ = # pow2 5 ;
 ```
-`pow2` dos not call it self, rather, it calls the function which is called `pow2`.
+`pow2` does not call it self, rather, it calls the function which is called `pow2`.
 The difference can be examplified by the following code :
 ```
 .f = # pow2 = if ? 2 * #pow2 (?-1) else 1 ;
@@ -428,8 +428,8 @@ This not only gives a somewhat flatter way to provide functions with several par
 
 Oh and by the way, there is a *return* statement.
 It is what you expect.
-In likeliness of many dynamic languages such as lua, return statements are not mandatory.
-In stark contrast with them however, lack of a return statements does not mean no returned value, as by default the body of function is evaluated as an expression.
+Return statements are not mandatory.
+In contrast with C or lua and in likeliness of OCaml and Rust, lack of a return statements does not mean no returned value: by default the body of a function is evaluated as an expression.
 
 So return statements are best used to exit the body of a function early and to return falsy.
 
@@ -693,7 +693,7 @@ Combined with the fact that most things are expressions that are evaluated and p
 ```
 It may open some hacks possibility to code functions with multiple returns.
 
-####Function inspections and code injection :
+#### Function inspections and code injection :
 ```
 .nil = ()
 
@@ -735,6 +735,7 @@ The main gaping holes which would absolutely need to be filled before thinking a
     * sanitize the stack
     * clarify how much functions (and more generally context) introspection and alteration is permitted and act accordingly.
 * New Language features
+    * iterators
     * clarify the value yielded by while
     * break statements, similar to return but for blocks
     * strings

@@ -526,6 +526,7 @@ function metaCompiler:new(r)
         ---@TODO depending on how floats are treated, revisit.
         void = lpeg.P(true),
         number = Cargs(2) * Cc'write' / c_addCode * Cc'val' / addCodeField,
+        string = Cargs(2) * Cc'write' / c_addCode * Cc'val' / addCodeField,
         variable = Cargs(2) * Cc'load' / c_addCode * Cc(r.vars) / getVariable,
         -- * ( ((Carg(1) * Cc"vars" / get) * (Carg(2) * Cc"var" / get) / rawget) * Cc"Variable used before definition" / assert / 1 ) / c_addCode,
         indexed = Cargs(2) * Cc'ref' / subCodeGen * Cc'up' / c_addCode * Cc'index' / subCodeGen * Cc'get' / c_addCode,

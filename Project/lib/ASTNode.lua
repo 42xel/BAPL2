@@ -69,8 +69,8 @@ function MetaNode:__call (t, n, argst1, argst2, ...)
 end
 Node.empty = {tag = 'void'}
 function MetaNode:__index(packedTable)
-    if packedTable == nil then return print("Warning packedTable nil") and Node.empty
-    elseif type(packedTable) ~= 'table' then return print("Warning packedTable not table") end
+    if packedTable == nil then return io.stderr:write("Warning packedTable nil") and Node.empty
+    elseif type(packedTable) ~= 'table' then return io.stderr:write("Warning packedTable not table") end
 
     self[packedTable] = self(table.unpack(packedTable))
     return self[packedTable]

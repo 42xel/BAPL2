@@ -1,0 +1,5 @@
+@ = "size of array ?
+"
+array = new [ @ ] = "4" ;
+
+@ = array

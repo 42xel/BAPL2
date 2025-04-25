@@ -37,20 +37,20 @@ local run = require "interpreter"
 local input = assert(assert(
     io.open(assert(arg[1], arg[1] and 'r' or "\nUsage:\nlua main.lua myScript.fak"))
 ):read'a')
-print(input)
+io.stderr:write(input)
 
 local ast = parse (input)
-print(pt(ast))
---print("MaxOffset", _DEBOGUE.MaxOffset)
-print()
+io.stderr:write(pt(ast))
+--io.stderr:write("MaxOffset", _DEBOGUE.MaxOffset)
+io.stderr:write()
 
 local code = compile((ast))
-print(pt(code))
-print()
+io.stderr:write(pt(code))
+io.stderr:write()
 
-print(input)
-print("--- run ---")
+io.stderr:write(input)
+io.stderr:write("--- run ---\n")
 local r = run(code)
-print("result")
-print(r)
+io.stderr:write("result")
+io.stderr:write(r)
 --------------------------------------------------------------------------------

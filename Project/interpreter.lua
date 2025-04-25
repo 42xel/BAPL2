@@ -172,9 +172,9 @@ function Run:new(code, run)
             mv    = function() pc = pc + 1 ; vctx.stack.hpos = vctx.stack.hpos - code[pc] end, --moves the head a static number of steps down the stack
             mv_d  = function() vctx.stack.hpos = vctx.stack.hpos - vctx.stack.head end,              --moves the head a dynamic number of steps down the stack
             dup   = function() push(vctx.stack, peek(vctx.stack)) end,
-            print = function() if type (vctx.stack:peek()) == 'string' then io.write(vctx.stack:peek()) else print("@ = ", peek(vctx.stack)) end end,
+            print = function() if type (vctx.stack:peek()) == 'string' then io.write(vctx.stack:peek()) else io.write("@ = ", peek(vctx.stack)) end end,
             -- Yeah that's totally clean...
-            read  = function() print"@ " ; local r = io.stdin:read('l'); write(vctx.stack, tonumber(r) or r) end,
+            read  = function() io.stderr:write"@ " ; local r = io.stdin:read('l'); write(vctx.stack, tonumber(r) or r) end,
             --control structures
             jmp     = function() pc = pc + 1 ;                          pc = pc + code[pc]      end,
             jmp_Z   = function() pc = pc + 1 ; if peek(vctx.stack) == 0 then pc = pc + code[pc] end end,
@@ -272,7 +272,7 @@ function Run:new(code, run)
                     "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
                     .. "\t ipos:\t" .. vctx.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
-                    --print("toplevel")
+                    --io.stderr:write("toplevel")
                     return true
                 end
                 --litteral array declaration : we set the size at the end.
@@ -320,13 +320,13 @@ function Run:new(code, run)
                     "Incorrect Stack head position upon break:\n" .. tostring(vctx.stack)
                     .. "\t ipos:\t" .. vctx.ihpos .. "\t pos:\t" .. vctx.stack.hpos)
                 if not vctx.vtcxParent then
-                    --print("toplevel")
+                    --io.stderr:write("toplevel")
                     return true
                 end
 
                 local s = vctx.vtcxParent.stack.hpos
                 if s == 0 then
-                    print("ret: warning head position was zero")
+                    io.stderr:write("ret: warning head position was zero")
                     s = 1
                 end
                 vctx.vtcxParent.stack.hpos = s - 1
@@ -339,7 +339,7 @@ function Run:new(code, run)
             end,
         }
         setmetatable(run.switch, {__index = function()
-                print(trace and trace:unpack())
+                io.stderr:write(trace and trace:unpack())
                 --should not be happening, if it does, there most likely is an error in the compiler.
                 ---@TODO output in stderr. for now I use stdout for readibility, because apparently I have no control on how stdout and stderr will mix on the terminal output.
                 io.stdout:write("unknown instruction:\t" .. code[pc] .. " at line:\t" .. tostring(pc) .. " of code:\t" .. pt(code) .. "\n")   --lpeg match catches errors I think
@@ -347,8 +347,8 @@ function Run:new(code, run)
             end,
             __call = trace and function (self)
                 pc = pc + 1
-                if _INTERPRETER_DEBUG then  print(trace:unpack()) end ---@TODO make better
-                trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}    --TODO : print trace and program outpout to different streams ?
+                if _INTERPRETER_DEBUG then  io.stderr:write(trace:unpack()) end ---@TODO make better
+                trace = Stack{tostring(pc) .. "\tinstruction: " .. code[pc]}
                 return self[code[pc]]()
             end or function (self)
                 pc = pc + 1

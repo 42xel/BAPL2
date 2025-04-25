@@ -71,7 +71,7 @@ local blockComment = P";{" * (Cmt(C((P"{")^0) * Cc"", function (code, i, bracket
     return code:match(("}"):rep(1 + #brackets) .. '()', i)
  end)
     + err"Block comment missing end bracket(s)")
-local lineComment = ";" * (P(1) - newLine)^0 -- * print
+local lineComment = ";" * (P(1) - newLine)^0
 local comment = blockComment + lineComment
 
 local ws = newLine * comment^-1 + locale.space    --we might need ws or ws^1 in some places
@@ -340,7 +340,7 @@ exp_.context_ = paren_("{", V'seqs_', "}", "block/litteral Array")
 --    / Node{tag = 'new', 'content'} -- [0] = 'values'}
 
 local _errNoSC = err"BEWARE, you cannot separate condition, then and else with semi-colon"
---BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them clarify where the whole if stops though.
+--BEWARE, you can't separate condition, then and else with semicolon (that's intentional). You can use them to clarify where the whole if stops though.
 exp_.if_ = Rw_"if" * V'assign__' * (T_";" * _errNoSC + 0) * V'assign__' *
     ((T_";" * Rw_"else" * _errNoSC + Rw_"else") * V'assign__' * I'else')^-1 /
     Node{tag = 'if', "cond", "then", "else"}
@@ -409,10 +409,8 @@ TODO how does it relates to function loading ?
         ,
         function (_, _, lhs)
             if _validLhs[lhs.tag] then
-                --print("bla3", pt(lhs))
                 return true, lhs
             else
-                --print("bla4", lhs.tag, pt(lhs))
                 return false, "Invalid Left hand side for assignement"  ---@TODO see whether and where it is possible to throw this error/warning
             end
         end
@@ -435,12 +433,10 @@ exp_.seqs1_ = seq(V(#exp_ - 1), comment_, true)
 exp_ = P(exp_)
 
 --------------------------------------------------------------------------------
-local successParsing = print
 
 local filePatt =
     ws_ * (exp_)-- + stats_)
      * (-P(1) + err"file: syntax error.") --TODO better error msg
-    -- * (-P(successParsing) / 0)
 ---@return AST
 local function parse (input)
     local r = filePatt:match(input)

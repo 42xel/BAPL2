@@ -45,11 +45,15 @@ lpeg.Cargs = setmetatable ({
         return self[i]
     end,
 })
---simple debugging pattern
+
+-- Simple debugging pattern.
+-- Interject this pattern multiplicatively to print debug infomation in the midle of parsing.
+-- @param ncmt : do Not Create Match Time capture. If set to true, msg is printed verbatim and nothing else happen.
+-- If set to false, msg is used as a template format acting on the current captures.
 ---@TODO msg.format ? allows much more things
 function lpeg.I (msg, ncmt)
     --ncmt = true
-    return ncmt and lpeg.P(msg) / print or lpeg.P(function (...) print(msg:format(...)); return true end)
+    return ncmt and lpeg.P(msg) / (function (...) io.stderr:write(...) end) or lpeg.P(function (...) io.stderr:write(msg:format(...)); return true end)
 end
 --Copies a named pattern.
 function lpeg.Cpy(target, source)
@@ -57,7 +61,7 @@ function lpeg.Cpy(target, source)
 end
 
 --Usually, left folding is more useful because right associative folding comes for free in a way that can't be reproduced left associatively without causing a left recursive pattern
---However, it's not enough for folding a sequence of captures coming ffrom a non recursive pattern (eg. one with a suffix capture).
+--However, it's not enough for folding a sequence of captures coming from a non recursive pattern (eg. one with a suffix capture).
 ---lpeg Fold capture right associative
 function lpeg.Cfr (patt ,f)
     local function aux(...)

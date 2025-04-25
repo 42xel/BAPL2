@@ -140,7 +140,7 @@ function Compiler:invalidAst(ast)
 end
 function Compiler:getVariable(ast, default, islhs)
     local ctx = self.ctx
-    --print("getVariable0", ast, ast.var, default, islhs, ctx, pt(ctx))
+    --io.stderr:write("getVariable0", ast, ast.var, default, islhs, ctx, pt(ctx))
     local varID
     if type(ast.prefix) == 'number' then
         if ast.prefix == 0 then --global variable
@@ -224,7 +224,7 @@ end
 function Compiler:subCodeGen(ast, ...)
     local newAst = ast
     for _, field in ipairs{...} do
-        if newAst[field] == nil then print(([[
+        if newAst[field] == nil then io.stderr:write(([[
             Warning empty field in subCodeGen while parsing %s, looking for field %s.
             It may be anything from a mistake in the parser or the compiler to someone's malpractice with empty statements.
             Hopefully, it is just a missing optional expression.
@@ -494,7 +494,7 @@ function metaCompiler:new(r)
             --a bad way to handle self recursivity without forward declaration : we expand the lhs into a dummy code first
             ---@TODO Ideally, left hand side should always be compiled and executed before rhs and we'd be done
             state:new{ctx = state.ctx}(nodeAssign(ast.lhs.ref, nodeNum(0)))
-            --print("funassign1", ast.lhs.ref.tag, ast.exp.tag)
+            --io.stderr:write("funassign1", ast.lhs.ref.tag, ast.exp.tag)
             if ast.lhs.param then state:new{ctx = state.ctx}(ast.lhs.param) end
 
             ---compiles the static part of a function : the parameters and body. => staticFun
@@ -659,7 +659,7 @@ function metaCompiler:__call(ast)
     self:addCode'ret'
             --    for k, v in pairs(self.vars) do
 --        if type(k) == 'string' and self.vars[v] ~= k then
---            print(("Warning, global variable `%s` is used but never initialized"):format(k))
+--            io.stderr:write(("Warning, global variable `%s` is used but never initialized"):format(k))
 --        end
 --    end
     return self.code

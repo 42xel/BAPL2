@@ -21,7 +21,7 @@ palNaiveEven = lpeg.C(palNaiveEven) * -alpha
 local palNaive = palNaiveOdd + palNaiveEven
 
 local function isPalindrome(w)
-    for i = 1, #w/2 do
+    for i = 1, #w / 2 do
         if w:byte(i) ~= w:byte(-i) then return false end
     end
     return true, w

@@ -1,4 +1,3 @@
-
 # No capture pattern : `* Cc(nil)`
 Sometimes, we have patterns which return a variable number of captures and may return none, such a sequences of statements.
 For example :
@@ -30,6 +29,6 @@ will evaluate as 43
 
 # Single pass multipass.
 
-Using promises (callback functions) allows to do things in a single ass that would otherwise require several.
+Using promises (callback functions) allows to do things in a single pass that would otherwise require several.
 
 Things like gathering names (function, variable, labels ...), crossed recursion.

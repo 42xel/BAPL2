@@ -1,24 +1,26 @@
-indexation
-set (index)
+[ ] clean stdio (only print what's printed),
 
-concatenation ?
-concatenation of arrays while I'm at it.
+[ ] indexation get
+[ ] indexation set
 
-repetition
-trim
-remove suffix/prefix ?
+[v] concatenation ?
+[ ] concatenation of arrays while I'm at it.
 
-char <-> number
-array <-> string
+[v] repetition
+[ ] trim
+[ ] remove suffix/prefix ?
+
+[ ] char <-> number
+[ ] array <-> string
 
 Easy and terse way to generate a, b, c, 123, and to convert from and into array of u8.
 
-serialize, deserialize ?
+[ ] serialize, deserialize ?
 
-array of strings
+[ ] array of strings. join ?
 
-iterator.
+[ ] iterator.
 
 
-parsing/generating grammars ?
+[ ] parsing/generating grammars ?
 

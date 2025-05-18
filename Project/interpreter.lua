@@ -172,7 +172,7 @@ function Run:new(code, run)
             mv    = function() pc = pc + 1 ; vctx.stack.hpos = vctx.stack.hpos - code[pc] end, --moves the head a static number of steps down the stack
             mv_d  = function() vctx.stack.hpos = vctx.stack.hpos - vctx.stack.head end,              --moves the head a dynamic number of steps down the stack
             dup   = function() push(vctx.stack, peek(vctx.stack)) end,
-            print = function() if type (vctx.stack:peek()) == 'string' then io.write(vctx.stack:peek()) else io.write("@ = ", peek(vctx.stack)) end end,
+            print = function() if type (vctx.stack:peek()) == 'string' then io.write(peek(vctx.stack)) else io.write("@ = ", tostring(peek(vctx.stack)), "\n") end end,
             -- Yeah that's totally clean...
             read  = function() io.stderr:write"@ " ; local r = io.stdin:read('l'); write(vctx.stack, tonumber(r) or r) end,
             --control structures

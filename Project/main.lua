@@ -52,5 +52,5 @@ io.stderr:write(input)
 io.stderr:write("--- run ---\n")
 local r = run(code)
 io.stderr:write("result")
-io.stderr:write(r)
+io.stderr:write(tostring(r))
 --------------------------------------------------------------------------------

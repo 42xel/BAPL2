@@ -513,7 +513,7 @@ One sizeable issue with enticing users to exotic syntax, other than producing un
 Specifying it is a question no matter what, but it becomes more visible as fiddling is encouraged.
 For now, the order of evaluation has always been taken for convenience of implementation, and does not follow any logic or consistency.
 
-### imply operator
+### Imply operator
 
 The right associative imply operator allows for interesting control flow.
 ```
